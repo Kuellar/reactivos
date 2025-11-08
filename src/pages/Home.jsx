@@ -117,13 +117,27 @@ export default function Home() {
         opacity: 0,
         animation: `fadeDown 0.6s forwards`,
         animationDelay: `${idx * 0.2}s`,
+        position: "relative",
       }}
     >
-      <Skeleton
-        active
-        image={{ size: "default", shape: "square" }}
-        paragraph={{ rows: 1 }}
-      />
+      <div className="home-card">
+        <Skeleton.Image
+          active
+          style={{
+            maxWidth: "200px",
+            width: "180px",
+            height: "120px",
+            objectFit: "contain",
+          }}
+        />
+        <div style={{ padding: 12 }}>
+          <Skeleton.Input
+            active
+            size="small"
+            style={{ width: "60%", height: 16, borderRadius: 4 }}
+          />
+        </div>
+      </div>
     </div>
   ));
 
