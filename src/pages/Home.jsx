@@ -8,9 +8,9 @@ import {
   updateDoc,
   doc,
 } from "firebase/firestore";
-import { db } from "../firebase";
+import { db, auth } from "../firebase";
 import imgPlaceholder from "../assets/images/image-placeholder.png";
-import { getAuth } from "firebase/auth";
+import { onAuthStateChanged } from "firebase/auth";
 
 export default function Home() {
   const navigate = useNavigate();
@@ -19,18 +19,39 @@ export default function Home() {
   const [newLocationName, setNewLocationName] = useState("");
   const [editLocation, setEditLocation] = useState(null);
   const [query, setQuery] = useState("");
-  const auth = getAuth();
-  const user = auth.currentUser;
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsub = onSnapshot(collection(db, "locations"), (snapshot) => {
-      const data = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
-      setLocations(data);
+    let unsubSnapshot = null;
+    const unsubAuth = onAuthStateChanged(auth, (u) => {
+      setUser(u);
+      // Si ya hay un snapshot activo, no lo recreamos
+      if (unsubSnapshot) return;
+
+      try {
+        unsubSnapshot = onSnapshot(
+          collection(db, "locations"),
+          (snapshot) => {
+            const data = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
+            setLocations(data);
+            setLoading(false);
+          },
+          (err) => {
+            console.error("onSnapshot error locations:", err);
+            setLoading(false);
+          }
+        );
+      } catch (err) {
+        console.error("Error starting onSnapshot:", err);
+        setLoading(false);
+      }
     });
-    return () => unsub();
+
+    return () => {
+      if (unsubSnapshot) unsubSnapshot();
+      unsubAuth();
+    };
   }, []);
 
   const handleSave = async () => {
@@ -41,7 +62,7 @@ export default function Home() {
         const ref = doc(db, "locations", editLocation.id);
         await updateDoc(ref, {
           name: newLocationName,
-          img: editLocation.img || "",
+          img: editLocation.img ?? "",
         });
       } else {
         await addDoc(collection(db, "locations"), {
@@ -180,37 +201,41 @@ export default function Home() {
       </div>
 
       <div className="home-grid" style={{ padding: "0 30px 30px" }}>
-        {locations.map((loc) => (
-          <div key={loc.id} style={{ position: "relative" }}>
-            <ButtonCard
-              title={loc.name ?? "Sin título"}
-              img={loc.img || imgPlaceholder}
-              onClick={() => navigate(`/table?location=${loc.id}`)}
-            />
-            {user && (
-              <button
-                onClick={() => {
-                  setEditLocation(loc);
-                  setNewLocationName(loc.name ?? "");
-                  setShowPopup(true);
-                }}
-                style={{
-                  position: "absolute",
-                  top: 8,
-                  right: 8,
-                  background: "rgba(255,255,255,0.8)",
-                  borderRadius: "50%",
-                  border: "none",
-                  cursor: "pointer",
-                  padding: 6,
-                }}
-                title="Editar"
-              >
-                ✏️
-              </button>
-            )}
-          </div>
-        ))}
+        {loading ? (
+          <div>Loading...</div>
+        ) : (
+          locations.map((loc) => (
+            <div key={loc.id} style={{ position: "relative" }}>
+              <ButtonCard
+                title={loc.name ?? "Sin título"}
+                img={loc.img || imgPlaceholder}
+                onClick={() => navigate(`/table?location=${loc.id}`)}
+              />
+              {user && (
+                <button
+                  onClick={() => {
+                    setEditLocation(loc);
+                    setNewLocationName(loc.name ?? "");
+                    setShowPopup(true);
+                  }}
+                  style={{
+                    position: "absolute",
+                    top: 8,
+                    right: 8,
+                    background: "rgba(255,255,255,0.8)",
+                    borderRadius: "50%",
+                    border: "none",
+                    cursor: "pointer",
+                    padding: 6,
+                  }}
+                  title="Editar"
+                >
+                  ✏️
+                </button>
+              )}
+            </div>
+          ))
+        )}
       </div>
 
       {showPopup && (
