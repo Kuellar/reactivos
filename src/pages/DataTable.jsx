@@ -12,9 +12,11 @@ import {
 import { db } from "../firebase";
 import TableActions from "../components/TableActions";
 import { getAuth } from "firebase/auth";
+import { useLocation } from "react-router-dom";
 
 export default function DataTable() {
   const [data, setData] = useState([]);
+  const [filteredData, setFilteredData] = useState([]);
   const [showPopup, setShowPopup] = useState(false);
   const [editReactive, setEditReactive] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -24,10 +26,19 @@ export default function DataTable() {
   const [professors, setProfessors] = useState([]);
   const [locations, setLocations] = useState([]);
 
+  const [query, setQuery] = useState("");
   const [form] = Form.useForm();
 
   const auth = getAuth();
   const user = auth.currentUser;
+
+  const location = useLocation();
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const initialQuery = params.get("query") || "";
+    setQuery(initialQuery);
+  }, [location.search]);
 
   const fetchProfessors = async () => {
     try {
@@ -56,6 +67,27 @@ export default function DataTable() {
         ...d.data(),
       }));
       setData(items);
+      // Aplicar filtro inicial si hay query
+      if (query) {
+        const lowerQuery = query.toLowerCase();
+        setFilteredData(
+          items.filter((r) => {
+            const prof = professors.find((p) => p.id === r.docenteId);
+            const loc = locations.find((l) => l.id === r.lugarId);
+            return (
+              r.nombre?.toLowerCase().includes(lowerQuery) ||
+              r.descripcion?.toLowerCase().includes(lowerQuery) ||
+              (prof &&
+                `${prof.firstName} ${prof.lastName}`
+                  .toLowerCase()
+                  .includes(lowerQuery)) ||
+              (loc && loc.name.toLowerCase().includes(lowerQuery))
+            );
+          })
+        );
+      } else {
+        setFilteredData(items);
+      }
     } catch (err) {
       console.error(err);
       message.error("Error al obtener los reactivos");
@@ -65,10 +97,32 @@ export default function DataTable() {
   };
 
   useEffect(() => {
-    fetchData();
     fetchProfessors();
     fetchLocations();
   }, []);
+
+  useEffect(() => {
+    fetchData();
+  }, [professors, locations]);
+
+  const handleSearch = () => {
+    const lowerQuery = query.toLowerCase();
+    setFilteredData(
+      data.filter((r) => {
+        const prof = professors.find((p) => p.id === r.docenteId);
+        const loc = locations.find((l) => l.id === r.lugarId);
+        return (
+          r.nombre?.toLowerCase().includes(lowerQuery) ||
+          r.descripcion?.toLowerCase().includes(lowerQuery) ||
+          (prof &&
+            `${prof.firstName} ${prof.lastName}`
+              .toLowerCase()
+              .includes(lowerQuery)) ||
+          (loc && loc.name.toLowerCase().includes(lowerQuery))
+        );
+      })
+    );
+  };
 
   const openDelete = (reactive) => {
     setDeleteReactive(reactive);
@@ -106,8 +160,8 @@ export default function DataTable() {
       categoria: record.categoria || "",
       nivel: record.nivel || "",
       estado: record.estado || "pendiente",
-      docenteId: record.docenteId || undefined,
-      lugarId: record.lugarId || undefined,
+      docenteId: record.docenteId || "",
+      lugarId: record.lugarId || "",
     });
     setShowPopup(true);
   };
@@ -197,11 +251,66 @@ export default function DataTable() {
 
   return (
     <div className="full-width-table">
+      {/* Barra de búsqueda */}
+      <div
+        style={{
+          padding: "0 30px 16px",
+          display: "flex",
+          justifyContent: "center",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            background: "#fff",
+            padding: "8px 12px",
+            borderRadius: 999,
+            boxShadow: "0 1px 3px rgba(0,0,0,0.08)",
+            border: "1px solid rgba(0,0,0,0.06)",
+            width: "100%",
+            maxWidth: 600,
+          }}
+        >
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") handleSearch();
+            }}
+            placeholder="Buscar reactivo, ubicación o profesor..."
+            style={{
+              border: "none",
+              outline: "none",
+              flex: 1,
+              fontSize: 14,
+              padding: "6px 8px",
+            }}
+          />
+          <button
+            onClick={handleSearch}
+            style={{
+              padding: "8px 12px",
+              borderRadius: 999,
+              backgroundColor: "var(--color-secondary)",
+              color: "#111",
+              border: "none",
+              cursor: "pointer",
+              fontWeight: 600,
+            }}
+          >
+            Buscar
+          </button>
+        </div>
+      </div>
+
       <div
         style={{
           display: "flex",
           justifyContent: "space-between",
           marginBottom: 16,
+          padding: "0 30px",
         }}
       >
         <h2>Reactivos</h2>
@@ -214,7 +323,7 @@ export default function DataTable() {
 
       <Table
         columns={columns}
-        dataSource={data}
+        dataSource={filteredData}
         loading={loading}
         pagination={{ pageSize: 10 }}
         rowKey={(r) => r.id}
