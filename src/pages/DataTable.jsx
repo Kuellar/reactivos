@@ -19,6 +19,9 @@ export default function DataTable() {
   const [editReactive, setEditReactive] = useState(null);
   const [loading, setLoading] = useState(false);
 
+  const [showPopupDelete, setShowPopupDelete] = useState(false);
+  const [deleteReactive, setDeleteReactive] = useState(null);
+
   // Campos del formulario
   const [nombre, setNombre] = useState("");
   const [descripcion, setDescripcion] = useState("");
@@ -50,26 +53,30 @@ export default function DataTable() {
     fetchData();
   }, []);
 
-  const handleDelete = async (record) => {
-    Modal.confirm({
-      title: "¿Eliminar reactivo?",
-      content: `Se eliminará "${record.nombre}". Esta acción no se puede deshacer.`,
-      okText: "Eliminar",
-      cancelText: "Cancelar",
-      okButtonProps: { danger: true },
-      onOk: async () => {
-        try {
-          await deleteDoc(doc(db, "reactives", record.id));
-          message.success("Reactivo eliminado");
-          fetchData();
-        } catch (err) {
-          console.error(err);
-          message.error("Error al eliminar el reactivo");
-        }
-      },
-    });
+  // --- MODAL BORRADO ---
+  const openDelete = (reactive) => {
+    setDeleteReactive(reactive);
+    setShowPopupDelete(true);
   };
 
+  const handleDelete = async () => {
+    if (!deleteReactive) return;
+    try {
+      setLoading(true);
+      await deleteDoc(doc(db, "reactives", deleteReactive.id));
+      message.success("Reactivo eliminado");
+      setShowPopupDelete(false);
+      setDeleteReactive(null);
+      fetchData();
+    } catch (err) {
+      console.error(err);
+      message.error("Error al eliminar el reactivo");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // --- MODAL CREAR / EDITAR ---
   const handleAdd = () => {
     setEditReactive(null);
     setNombre("");
@@ -89,6 +96,7 @@ export default function DataTable() {
     setEstado(record.estado || "pendiente");
     setShowPopup(true);
   };
+
   const handleSave = async (values) => {
     const reactiveData = {
       nombre: values.nombre || "",
@@ -101,8 +109,7 @@ export default function DataTable() {
     try {
       setLoading(true);
       if (editReactive && editReactive.id) {
-        const docRef = doc(db, "reactives", editReactive.id);
-        await updateDoc(docRef, reactiveData);
+        await updateDoc(doc(db, "reactives", editReactive.id), reactiveData);
         message.success("Reactivo actualizado");
       } else {
         await addDoc(collection(db, "reactives"), reactiveData);
@@ -139,6 +146,7 @@ export default function DataTable() {
     },
   ];
 
+  // Solo usuarios logueados ven acciones
   if (user) {
     columns.push({
       title: "Acciones",
@@ -147,7 +155,7 @@ export default function DataTable() {
       render: (_, record) => (
         <TableActions
           onEdit={() => handleEdit(record)}
-          onDelete={() => handleDelete(record)}
+          onDelete={() => openDelete(record)} // <-- abrir modal borrar
         />
       ),
     });
@@ -178,6 +186,7 @@ export default function DataTable() {
         rowKey={(r) => r.id}
       />
 
+      {/* MODAL CREAR / EDITAR */}
       {showPopup && (
         <div
           style={{
@@ -218,20 +227,13 @@ export default function DataTable() {
             <Form
               layout="vertical"
               initialValues={{
-                nombre: nombre,
-                descripcion: descripcion,
-                categoria: categoria,
-                nivel: nivel,
-                estado: estado || "pendiente",
+                nombre,
+                descripcion,
+                categoria,
+                nivel,
+                estado,
               }}
-              onFinish={(values) => {
-                setNombre(values.nombre);
-                setDescripcion(values.descripcion);
-                setCategoria(values.categoria);
-                setNivel(values.nivel);
-                setEstado(values.estado);
-                handleSave(values);
-              }}
+              onFinish={(values) => handleSave(values)}
             >
               <Form.Item
                 label="Nombre"
@@ -273,23 +275,33 @@ export default function DataTable() {
                   marginTop: 10,
                 }}
               >
-                <Button
-                  onClick={() => setShowPopup(false)}
-                  style={{ fontWeight: 500 }}
-                >
-                  Cancelar
-                </Button>
-                <Button
-                  type="primary"
-                  htmlType="submit"
-                  style={{ fontWeight: 500 }}
-                >
+                <Button onClick={() => setShowPopup(false)}>Cancelar</Button>
+                <Button type="primary" htmlType="submit">
                   {editReactive ? "Guardar" : "Crear"}
                 </Button>
               </div>
             </Form>
           </div>
         </div>
+      )}
+      {showPopupDelete && (
+        <Modal
+          open={showPopupDelete}
+          title="Confirmar eliminación"
+          onOk={handleDelete}
+          onCancel={() => {
+            setShowPopupDelete(false);
+            setDeleteReactive(null);
+          }}
+          okText="Eliminar"
+          okType="danger"
+          cancelText="Cancelar"
+        >
+          <p>
+            ¿Estás seguro de que deseas eliminar el reactivo "
+            {deleteReactive?.nombre}"? Esta acción no se puede deshacer.
+          </p>
+        </Modal>
       )}
     </div>
   );
