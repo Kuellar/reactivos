@@ -29,7 +29,7 @@ export default function HeaderBar() {
         alignItems: "center",
         gap: 16,
         padding: "0 20px",
-        height: 64,
+        height: 84,
         background: "var(--color-primary)",
       }}
     >
@@ -46,7 +46,7 @@ export default function HeaderBar() {
           src={logoNegative}
           alt="logo"
           className="app-header-logo"
-          style={{ height: 40 }}
+          style={{ height: 80 }}
         />
         <div style={{ color: "#fff", fontWeight: 600 }}>Registro de sustancias peligrosas</div>
       </Link>
