@@ -18,19 +18,34 @@ export default function DataTable() {
   const [showPopup, setShowPopup] = useState(false);
   const [editReactive, setEditReactive] = useState(null);
   const [loading, setLoading] = useState(false);
-
   const [showPopupDelete, setShowPopupDelete] = useState(false);
   const [deleteReactive, setDeleteReactive] = useState(null);
 
-  // Campos del formulario
-  const [nombre, setNombre] = useState("");
-  const [descripcion, setDescripcion] = useState("");
-  const [categoria, setCategoria] = useState("");
-  const [nivel, setNivel] = useState("");
-  const [estado, setEstado] = useState("pendiente");
+  const [professors, setProfessors] = useState([]);
+  const [locations, setLocations] = useState([]);
+
+  const [form] = Form.useForm();
 
   const auth = getAuth();
   const user = auth.currentUser;
+
+  const fetchProfessors = async () => {
+    try {
+      const querySnapshot = await getDocs(collection(db, "professors"));
+      setProfessors(querySnapshot.docs.map((d) => ({ id: d.id, ...d.data() })));
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const fetchLocations = async () => {
+    try {
+      const querySnapshot = await getDocs(collection(db, "locations"));
+      setLocations(querySnapshot.docs.map((d) => ({ id: d.id, ...d.data() })));
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
   const fetchData = async () => {
     setLoading(true);
@@ -51,9 +66,10 @@ export default function DataTable() {
 
   useEffect(() => {
     fetchData();
+    fetchProfessors();
+    fetchLocations();
   }, []);
 
-  // --- MODAL BORRADO ---
   const openDelete = (reactive) => {
     setDeleteReactive(reactive);
     setShowPopupDelete(true);
@@ -76,24 +92,23 @@ export default function DataTable() {
     }
   };
 
-  // --- MODAL CREAR / EDITAR ---
   const handleAdd = () => {
     setEditReactive(null);
-    setNombre("");
-    setDescripcion("");
-    setCategoria("");
-    setNivel("");
-    setEstado("pendiente");
+    form.resetFields();
     setShowPopup(true);
   };
 
   const handleEdit = (record) => {
     setEditReactive(record);
-    setNombre(record.nombre || "");
-    setDescripcion(record.descripcion || "");
-    setCategoria(record.categoria || "");
-    setNivel(record.nivel || "");
-    setEstado(record.estado || "pendiente");
+    form.setFieldsValue({
+      nombre: record.nombre || "",
+      descripcion: record.descripcion || "",
+      categoria: record.categoria || "",
+      nivel: record.nivel || "",
+      estado: record.estado || "pendiente",
+      docenteId: record.docenteId || undefined,
+      lugarId: record.lugarId || undefined,
+    });
     setShowPopup(true);
   };
 
@@ -104,6 +119,8 @@ export default function DataTable() {
       categoria: values.categoria || "",
       nivel: values.nivel || "",
       estado: values.estado || "pendiente",
+      docenteId: values.docenteId || "",
+      lugarId: values.lugarId || "",
     };
 
     try {
@@ -128,6 +145,24 @@ export default function DataTable() {
   const columns = [
     { title: "Nombre", dataIndex: "nombre", key: "nombre" },
     { title: "Descripción", dataIndex: "descripcion", key: "descripcion" },
+    {
+      title: "Docente encargado",
+      dataIndex: "docenteId",
+      key: "docente",
+      render: (id) => {
+        const prof = professors.find((p) => p.id === id);
+        return prof ? `${prof.firstName} ${prof.lastName}` : "";
+      },
+    },
+    {
+      title: "Lugar",
+      dataIndex: "lugarId",
+      key: "lugar",
+      render: (id) => {
+        const loc = locations.find((l) => l.id === id);
+        return loc ? loc.name : "";
+      },
+    },
     { title: "Categoría", dataIndex: "categoria", key: "categoria" },
     { title: "Nivel", dataIndex: "nivel", key: "nivel" },
     {
@@ -146,7 +181,6 @@ export default function DataTable() {
     },
   ];
 
-  // Solo usuarios logueados ven acciones
   if (user) {
     columns.push({
       title: "Acciones",
@@ -155,7 +189,7 @@ export default function DataTable() {
       render: (_, record) => (
         <TableActions
           onEdit={() => handleEdit(record)}
-          onDelete={() => openDelete(record)} // <-- abrir modal borrar
+          onDelete={() => openDelete(record)}
         />
       ),
     });
@@ -224,17 +258,7 @@ export default function DataTable() {
               reactivo.
             </p>
 
-            <Form
-              layout="vertical"
-              initialValues={{
-                nombre,
-                descripcion,
-                categoria,
-                nivel,
-                estado,
-              }}
-              onFinish={(values) => handleSave(values)}
-            >
+            <Form form={form} layout="vertical" onFinish={handleSave}>
               <Form.Item
                 label="Nombre"
                 name="nombre"
@@ -250,6 +274,28 @@ export default function DataTable() {
                   placeholder="Descripción del reactivo"
                   rows={4}
                 />
+              </Form.Item>
+
+              <Form.Item label="Docente encargado" name="docenteId">
+                <Select placeholder="Selecciona un docente" allowClear>
+                  <Select.Option value="">Sin docente encargado</Select.Option>
+                  {professors.map((p) => (
+                    <Select.Option key={p.id} value={p.id}>
+                      {p.firstName} {p.lastName}
+                    </Select.Option>
+                  ))}
+                </Select>
+              </Form.Item>
+
+              <Form.Item label="Lugar" name="lugarId">
+                <Select placeholder="Selecciona un lugar" allowClear>
+                  <Select.Option value="">Sin especificar</Select.Option>
+                  {locations.map((l) => (
+                    <Select.Option key={l.id} value={l.id}>
+                      {l.name}
+                    </Select.Option>
+                  ))}
+                </Select>
               </Form.Item>
 
               <Form.Item label="Categoría" name="categoria">
@@ -284,6 +330,7 @@ export default function DataTable() {
           </div>
         </div>
       )}
+
       {showPopupDelete && (
         <Modal
           open={showPopupDelete}
