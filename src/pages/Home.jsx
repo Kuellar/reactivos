@@ -7,10 +7,13 @@ import {
   addDoc,
   updateDoc,
   doc,
+  deleteDoc,
 } from "firebase/firestore";
 import { db, auth } from "../firebase";
 import imgPlaceholder from "../assets/images/image-placeholder.png";
 import { onAuthStateChanged } from "firebase/auth";
+import { Modal, message, Skeleton, Space, Tooltip } from "antd";
+import { EditOutlined, DeleteOutlined } from "@ant-design/icons";
 
 export default function Home() {
   const navigate = useNavigate();
@@ -20,13 +23,14 @@ export default function Home() {
   const [editLocation, setEditLocation] = useState(null);
   const [query, setQuery] = useState("");
   const [user, setUser] = useState(null);
+  const [deleteLocation, setDeleteLocation] = useState(null);
+  const [showPopupDelete, setShowPopupDelete] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let unsubSnapshot = null;
     const unsubAuth = onAuthStateChanged(auth, (u) => {
       setUser(u);
-      // Si ya hay un snapshot activo, no lo recreamos
       if (unsubSnapshot) return;
 
       try {
@@ -76,6 +80,27 @@ export default function Home() {
       setEditLocation(null);
     } catch (error) {
       console.error("Error saving location:", error);
+      message.error("Error al guardar la sala");
+    }
+  };
+
+  const openDelete = (loc) => {
+    setDeleteLocation(loc); // guardamos la ubicación a borrar
+    setShowPopupDelete(true); // mostramos el popup
+  };
+
+  const handleDelete = async () => {
+    if (!deleteLocation) return;
+
+    try {
+      await deleteDoc(doc(db, "locations", deleteLocation.id));
+      message.success(`Sala "${deleteLocation.name}" eliminada`);
+    } catch (err) {
+      console.error(err);
+      message.error("Error al eliminar la sala");
+    } finally {
+      setDeleteLocation(null);
+      setShowPopupDelete(false);
     }
   };
 
@@ -84,6 +109,23 @@ export default function Home() {
     if (!q) return;
     navigate(`/table?query=${encodeURIComponent(q)}`);
   };
+
+  const skeletons = Array.from({ length: 3 }).map((_, idx) => (
+    <div
+      key={idx}
+      style={{
+        opacity: 0,
+        animation: `fadeDown 0.6s forwards`,
+        animationDelay: `${idx * 0.2}s`,
+      }}
+    >
+      <Skeleton
+        active
+        image={{ size: "default", shape: "square" }}
+        paragraph={{ rows: 1 }}
+      />
+    </div>
+  ));
 
   return (
     <div
@@ -94,142 +136,191 @@ export default function Home() {
         flexDirection: "column",
       }}
     >
-      <div
-        style={{
-          padding: "16px 30px",
-          display: "flex",
-          flexDirection: "column",
-          gap: 12,
-        }}
-      >
-        {user && (
-          <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
-            <button
-              style={{
-                padding: "8px 16px",
-                borderRadius: 8,
-                backgroundColor: "#007bff",
-                color: "white",
-                border: "none",
-                cursor: "pointer",
-              }}
-              onClick={() => {
-                setEditLocation(null);
-                setNewLocationName("");
-                setShowPopup(true);
-              }}
-            >
-              Agregar sala
-            </button>
-
-            <button
-              style={{
-                padding: "8px 16px",
-                borderRadius: 8,
-                backgroundColor: "var(--color-secondary)",
-                color: "#111",
-                border: "none",
-                cursor: "pointer",
-                transition: "all 0.2s",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.opacity = "0.9";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.opacity = "1";
-              }}
-              onClick={() => navigate(`/professors`)}
-            >
-              Ver docentes
-            </button>
-          </div>
-        )}
-        <div style={{ display: "flex", justifyContent: "center" }}>
-          <div
+      {user && (
+        <div
+          style={{
+            padding: "16px 30px",
+            display: "flex",
+            justifyContent: "flex-end",
+            gap: 10,
+          }}
+        >
+          <button
             style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              background: "#fff",
-              padding: "8px 12px",
-              borderRadius: 999,
-              boxShadow: "0 1px 3px rgba(0,0,0,0.08)",
-              border: "1px solid rgba(0,0,0,0.06)",
-              width: "100%",
-              maxWidth: 600,
+              padding: "8px 16px",
+              borderRadius: 8,
+              backgroundColor: "#007bff",
+              color: "white",
+              border: "none",
+              cursor: "pointer",
+            }}
+            onClick={() => {
+              setEditLocation(null);
+              setNewLocationName("");
+              setShowPopup(true);
             }}
           >
-            <input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") handleSearch();
-              }}
-              placeholder="Buscar reactivo, ubicación o profesor..."
-              style={{
-                border: "none",
-                outline: "none",
-                flex: 1,
-                fontSize: 14,
-                padding: "6px 8px",
-              }}
-            />
-            <button
-              onClick={handleSearch}
-              style={{
-                padding: "8px 12px",
-                borderRadius: 999,
-                backgroundColor: "var(--color-secondary)",
-                color: "#111",
-                border: "none",
-                cursor: "pointer",
-                fontWeight: 600,
-              }}
-            >
-              Buscar
-            </button>
-          </div>
+            Agregar sala
+          </button>
+
+          <button
+            style={{
+              padding: "8px 16px",
+              borderRadius: 8,
+              backgroundColor: "var(--color-secondary)",
+              color: "#111",
+              border: "none",
+              cursor: "pointer",
+              transition: "all 0.2s",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.opacity = "0.9";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.opacity = "1";
+            }}
+            onClick={() => navigate(`/professors`)}
+          >
+            Ver docentes
+          </button>
+        </div>
+      )}
+      <div
+        style={{
+          padding: "0 30px 16px",
+          display: "flex",
+          justifyContent: "center",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            background: "#fff",
+            padding: "8px 12px",
+            borderRadius: 999,
+            boxShadow: "0 1px 3px rgba(0,0,0,0.08)",
+            border: "1px solid rgba(0,0,0,0.06)",
+            width: "100%",
+            maxWidth: 600,
+          }}
+        >
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") handleSearch();
+            }}
+            placeholder="Buscar reactivo, ubicación o profesor..."
+            style={{
+              border: "none",
+              outline: "none",
+              flex: 1,
+              fontSize: 14,
+              padding: "6px 8px",
+            }}
+          />
+          <button
+            onClick={handleSearch}
+            style={{
+              padding: "8px 12px",
+              borderRadius: 999,
+              backgroundColor: "var(--color-secondary)",
+              color: "#111",
+              border: "none",
+              cursor: "pointer",
+              fontWeight: 600,
+            }}
+          >
+            Buscar
+          </button>
         </div>
       </div>
-
-      <div className="home-grid" style={{ padding: "0 30px 30px" }}>
-        {loading ? (
-          <div>Loading...</div>
-        ) : (
-          locations.map((loc) => (
-            <div key={loc.id} style={{ position: "relative" }}>
-              <ButtonCard
-                title={loc.name ?? "Sin título"}
-                img={loc.img || imgPlaceholder}
-                onClick={() => navigate(`/table?location=${loc.id}`)}
-              />
-              {user && (
-                <button
-                  onClick={() => {
-                    setEditLocation(loc);
-                    setNewLocationName(loc.name ?? "");
-                    setShowPopup(true);
-                  }}
-                  style={{
-                    position: "absolute",
-                    top: 8,
-                    right: 8,
-                    background: "rgba(255,255,255,0.8)",
-                    borderRadius: "50%",
-                    border: "none",
-                    cursor: "pointer",
-                    padding: 6,
-                  }}
-                  title="Editar"
-                >
-                  ✏️
-                </button>
-              )}
-            </div>
-          ))
-        )}
+      <div
+        className="home-grid"
+        style={{
+          padding: "0 30px 30px",
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
+          gap: 20,
+        }}
+      >
+        {loading
+          ? skeletons
+          : locations.map((loc) => (
+              <div key={loc.id} style={{ position: "relative" }}>
+                <ButtonCard
+                  title={loc.name ?? "Sin título"}
+                  img={loc.img || imgPlaceholder}
+                  onClick={() => navigate(`/table?location=${loc.id}`)}
+                />
+                {user && (
+                  <div
+                    style={{
+                      position: "absolute",
+                      top: 8,
+                      right: 8,
+                      display: "flex",
+                      gap: 6,
+                    }}
+                  >
+                    <Tooltip title="Editar">
+                      <button
+                        onClick={() => {
+                          setEditLocation(loc);
+                          setNewLocationName(loc.name ?? "");
+                          setShowPopup(true);
+                        }}
+                        style={{
+                          background: "rgba(245, 245, 245, 0.9)",
+                          borderRadius: "50%",
+                          border: "none",
+                          cursor: "pointer",
+                          padding: 6,
+                        }}
+                      >
+                        <EditOutlined />
+                      </button>
+                    </Tooltip>
+                    <Tooltip title="Eliminar">
+                      <button
+                        onClick={() => openDelete(loc)}
+                        style={{
+                          background: "rgba(245, 245, 245, 0.9)",
+                          borderRadius: "50%",
+                          border: "none",
+                          cursor: "pointer",
+                          padding: 6,
+                        }}
+                      >
+                        <DeleteOutlined style={{ color: "red" }} />
+                      </button>
+                    </Tooltip>
+                  </div>
+                )}
+              </div>
+            ))}
       </div>
-
+      {showPopupDelete && (
+        <Modal
+          open={showPopupDelete}
+          title="Confirmar eliminación"
+          onOk={handleDelete}
+          onCancel={() => {
+            setShowPopupDelete(false);
+            setDeleteLocation(null);
+          }}
+          okText="Eliminar"
+          okType="danger"
+          cancelText="Cancelar"
+        >
+          <p>
+            ¿Estás seguro de que deseas eliminar la sala "{deleteLocation?.name}
+            "? Esta acción no se puede deshacer.
+          </p>
+        </Modal>
+      )}
       {showPopup && (
         <div
           style={{
@@ -302,6 +393,13 @@ export default function Home() {
           </div>
         </div>
       )}
+
+      <style>{`
+        @keyframes fadeDown {
+          0% { opacity: 0; transform: translateY(-10px); }
+          100% { opacity: 1; transform: translateY(0); }
+        }
+      `}</style>
     </div>
   );
 }
