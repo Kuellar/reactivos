@@ -96,107 +96,99 @@ export default function Home() {
     >
       <div
         style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
           padding: "16px 30px",
+          display: "flex",
+          flexDirection: "column",
           gap: 12,
         }}
       >
-        <div
-          style={{ display: "flex", alignItems: "center", gap: 12, flex: 1 }}
-        >
-          <h2 style={{ margin: 0, minWidth: 160 }}></h2>
-
-          <div style={{ flex: 1 }}>
-            <div
+        {user && (
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+            <button
               style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-                background: "#fff",
-                padding: "8px 12px",
-                borderRadius: 999,
-                boxShadow: "0 1px 3px rgba(0,0,0,0.08)",
-                border: "1px solid rgba(0,0,0,0.06)",
+                padding: "8px 16px",
+                borderRadius: 8,
+                backgroundColor: "#007bff",
+                color: "white",
+                border: "none",
+                cursor: "pointer",
+              }}
+              onClick={() => {
+                setEditLocation(null);
+                setNewLocationName("");
+                setShowPopup(true);
               }}
             >
-              <input
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") handleSearch();
-                }}
-                placeholder="Buscar reactivo, ubicación o profesor..."
-                style={{
-                  border: "none",
-                  outline: "none",
-                  flex: 1,
-                  fontSize: 14,
-                  padding: "6px 8px",
-                }}
-              />
-              <button
-                onClick={handleSearch}
-                style={{
-                  padding: "8px 12px",
-                  borderRadius: 999,
-                  backgroundColor: "var(--color-secondary)",
-                  color: "#111",
-                  border: "none",
-                  cursor: "pointer",
-                  fontWeight: 600,
-                }}
-              >
-                Buscar
-              </button>
-            </div>
+              Agregar sala
+            </button>
+
+            <button
+              style={{
+                padding: "8px 16px",
+                borderRadius: 8,
+                backgroundColor: "var(--color-secondary)",
+                color: "#111",
+                border: "none",
+                cursor: "pointer",
+                transition: "all 0.2s",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.opacity = "0.9";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.opacity = "1";
+              }}
+              onClick={() => navigate(`/professors`)}
+            >
+              Ver docentes
+            </button>
           </div>
-        </div>
-
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          {user && (
-            <>
-              <button
-                style={{
-                  padding: "8px 16px",
-                  borderRadius: 8,
-                  backgroundColor: "#007bff",
-                  color: "white",
-                  border: "none",
-                  cursor: "pointer",
-                }}
-                onClick={() => {
-                  setEditLocation(null);
-                  setNewLocationName("");
-                  setShowPopup(true);
-                }}
-              >
-                Agregar sala
-              </button>
-
-              <button
-                style={{
-                  padding: "8px 16px",
-                  borderRadius: 8,
-                  backgroundColor: "var(--color-secondary)",
-                  color: "#111",
-                  border: "none",
-                  cursor: "pointer",
-                  transition: "all 0.2s",
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.opacity = "0.9";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.opacity = "1";
-                }}
-                onClick={() => navigate(`/professors`)}
-              >
-                Ver docentes
-              </button>
-            </>
-          )}
+        )}
+        <div style={{ display: "flex", justifyContent: "center" }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              background: "#fff",
+              padding: "8px 12px",
+              borderRadius: 999,
+              boxShadow: "0 1px 3px rgba(0,0,0,0.08)",
+              border: "1px solid rgba(0,0,0,0.06)",
+              width: "100%",
+              maxWidth: 600,
+            }}
+          >
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleSearch();
+              }}
+              placeholder="Buscar reactivo, ubicación o profesor..."
+              style={{
+                border: "none",
+                outline: "none",
+                flex: 1,
+                fontSize: 14,
+                padding: "6px 8px",
+              }}
+            />
+            <button
+              onClick={handleSearch}
+              style={{
+                padding: "8px 12px",
+                borderRadius: 999,
+                backgroundColor: "var(--color-secondary)",
+                color: "#111",
+                border: "none",
+                cursor: "pointer",
+                fontWeight: 600,
+              }}
+            >
+              Buscar
+            </button>
+          </div>
         </div>
       </div>
 
