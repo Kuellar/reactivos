@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Table, Tag, Button, message, Modal, Form, Input, Select } from "antd";
-import { PlusOutlined } from "@ant-design/icons";
+import { PlusOutlined, CloseCircleOutlined } from "@ant-design/icons";
 import {
   collection,
   getDocs,
@@ -12,7 +12,7 @@ import {
 import { db } from "../firebase";
 import TableActions from "../components/TableActions";
 import { getAuth } from "firebase/auth";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 
 export default function DataTable() {
   const [data, setData] = useState([]);
@@ -27,17 +27,23 @@ export default function DataTable() {
   const [locations, setLocations] = useState([]);
 
   const [query, setQuery] = useState("");
+  const [locationFilter, setLocationFilter] = useState(null);
   const [form] = Form.useForm();
 
   const auth = getAuth();
   const user = auth.currentUser;
 
   const location = useLocation();
+  const navigate = useNavigate();
 
+  // Obtener ?query= y ?location= de la URL al cargar
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const initialQuery = params.get("query") || "";
+    const initialLocationId = params.get("location") || null;
+
     setQuery(initialQuery);
+    setLocationFilter(initialLocationId);
   }, [location.search]);
 
   const fetchProfessors = async () => {
@@ -67,27 +73,7 @@ export default function DataTable() {
         ...d.data(),
       }));
       setData(items);
-      // Aplicar filtro inicial si hay query
-      if (query) {
-        const lowerQuery = query.toLowerCase();
-        setFilteredData(
-          items.filter((r) => {
-            const prof = professors.find((p) => p.id === r.docenteId);
-            const loc = locations.find((l) => l.id === r.lugarId);
-            return (
-              r.nombre?.toLowerCase().includes(lowerQuery) ||
-              r.descripcion?.toLowerCase().includes(lowerQuery) ||
-              (prof &&
-                `${prof.firstName} ${prof.lastName}`
-                  .toLowerCase()
-                  .includes(lowerQuery)) ||
-              (loc && loc.name.toLowerCase().includes(lowerQuery))
-            );
-          })
-        );
-      } else {
-        setFilteredData(items);
-      }
+      applyFilters(items, query, locationFilter);
     } catch (err) {
       console.error(err);
       message.error("Error al obtener los reactivos");
@@ -105,10 +91,16 @@ export default function DataTable() {
     fetchData();
   }, [professors, locations]);
 
-  const handleSearch = () => {
-    const lowerQuery = query.toLowerCase();
-    setFilteredData(
-      data.filter((r) => {
+  // Reaplicar filtros cuando cambian query o locationFilter
+  useEffect(() => {
+    applyFilters(data, query, locationFilter);
+  }, [query, locationFilter, data]);
+
+  const applyFilters = (items, textQuery, locFilter) => {
+    let filtered = items;
+    if (textQuery) {
+      const lowerQuery = textQuery.toLowerCase();
+      filtered = filtered.filter((r) => {
         const prof = professors.find((p) => p.id === r.docenteId);
         const loc = locations.find((l) => l.id === r.lugarId);
         return (
@@ -120,8 +112,23 @@ export default function DataTable() {
               .includes(lowerQuery)) ||
           (loc && loc.name.toLowerCase().includes(lowerQuery))
         );
-      })
-    );
+      });
+    }
+    if (locFilter) {
+      filtered = filtered.filter((r) => r.lugarId === locFilter);
+    }
+    setFilteredData(filtered);
+  };
+
+  const handleSearch = () => {
+    applyFilters(data, query, locationFilter);
+  };
+
+  const clearLocationFilter = () => {
+    setLocationFilter(null);
+    const params = new URLSearchParams(location.search);
+    params.delete("location");
+    navigate({ search: params.toString() }, { replace: true });
   };
 
   const openDelete = (reactive) => {
@@ -205,7 +212,9 @@ export default function DataTable() {
       key: "docente",
       render: (id) => {
         const prof = professors.find((p) => p.id === id);
-        return prof ? `${prof.firstName} ${prof.lastName}` : "";
+        return prof
+          ? `${prof.firstName} ${prof.lastName}`
+          : "Sin docente encargado";
       },
     },
     {
@@ -214,7 +223,7 @@ export default function DataTable() {
       key: "lugar",
       render: (id) => {
         const loc = locations.find((l) => l.id === id);
-        return loc ? loc.name : "";
+        return loc ? loc.name : "Sin especificar";
       },
     },
     { title: "Categoría", dataIndex: "categoria", key: "categoria" },
@@ -251,7 +260,6 @@ export default function DataTable() {
 
   return (
     <div className="full-width-table">
-      {/* Barra de búsqueda */}
       <div
         style={{
           padding: "0 30px 16px",
@@ -288,6 +296,29 @@ export default function DataTable() {
               padding: "6px 8px",
             }}
           />
+
+          {locationFilter && (
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                backgroundColor: "#eee",
+                borderRadius: 16,
+                padding: "2px 6px",
+                fontSize: 13,
+                marginRight: 4,
+                gap: 4,
+              }}
+            >
+              {locations.find((l) => l.id === locationFilter)?.name ||
+                "Ubicación"}
+              <CloseCircleOutlined
+                onClick={clearLocationFilter}
+                style={{ cursor: "pointer", fontSize: 12 }}
+              />
+            </div>
+          )}
+
           <button
             onClick={handleSearch}
             style={{
