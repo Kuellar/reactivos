@@ -48,7 +48,9 @@ export default function HeaderBar() {
           className="app-header-logo"
           style={{ height: 80 }}
         />
-        <div style={{ color: "#fff", fontWeight: 600 }}>Registro de sustancias peligrosas</div>
+        <div style={{ color: "#fff", fontWeight: 600 }}>
+          Registro de sustancias peligrosas
+        </div>
       </Link>
 
       <div style={{ marginLeft: "auto" }}>
@@ -56,7 +58,7 @@ export default function HeaderBar() {
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <div style={{ color: "#fff", fontWeight: 600 }}>{user.name}</div>
             <Button onClick={handleLogout} size="small">
-              Logout
+              Cerrar sesión
             </Button>
           </div>
         ) : (
@@ -65,7 +67,7 @@ export default function HeaderBar() {
             type="default"
             size="small"
           >
-            Login
+            Iniciar sesión
           </Button>
         )}
       </div>
