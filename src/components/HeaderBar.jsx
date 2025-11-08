@@ -29,7 +29,7 @@ export default function HeaderBar() {
         alignItems: "center",
         gap: 16,
         padding: "0 20px",
-        height: 84,
+        height: 94,
         background: "var(--color-primary)",
       }}
     >
@@ -46,13 +46,37 @@ export default function HeaderBar() {
           src={logoNegative}
           alt="logo"
           className="app-header-logo"
-          style={{ height: 80 }}
+          style={{ height: 90 }}
         />
-        <div style={{ color: "#fff", fontWeight: 600 }}>
-          Registro de sustancias peligrosas
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            justifyContent: "center",
+          }}
+        >
+          <div
+            style={{
+              color: "#fff",
+              fontWeight: 600,
+              fontSize: 18,
+              lineHeight: 1.2,
+            }}
+          >
+            Registro de sustancias peligrosas
+          </div>
+          <div
+            style={{
+              color: "#fff",
+              fontWeight: 400,
+              fontSize: 12,
+              lineHeight: 1.2,
+            }}
+          >
+            Facultad de farmacia depto. bioquímica clínica e inmunología
+          </div>
         </div>
       </Link>
-
       <div style={{ marginLeft: "auto" }}>
         {user ? (
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>

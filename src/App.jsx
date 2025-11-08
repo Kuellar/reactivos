@@ -7,7 +7,7 @@ export default function App() {
   return (
     <Layout style={{ minHeight: "100vh" }}>
       <HeaderBar />
-      <Content style={{ padding: 16, height: "calc(100vh - 64px)" }}>
+      <Content style={{ padding: 16, height: "calc(100vh - 94px)" }}>
         <div style={{ width: "100%", height: "100%" }}>
           <AppRouter />
         </div>
