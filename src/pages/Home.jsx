@@ -193,7 +193,7 @@ export default function Home() {
                 }}
                 onClick={() => navigate(`/professors`)}
               >
-                Ver profesores
+                Ver docentes
               </button>
             </>
           )}
