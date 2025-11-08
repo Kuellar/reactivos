@@ -106,7 +106,6 @@ export default function Home() {
 
   const handleSearch = () => {
     const q = (query || "").trim();
-    if (!q) return;
     navigate(`/table?query=${encodeURIComponent(q)}`);
   };
 
