@@ -234,18 +234,7 @@ export default function Home() {
               padding: "6px 8px",
             }}
           />
-          <button
-            onClick={handleSearch}
-            style={{
-              padding: "8px 12px",
-              borderRadius: 999,
-              backgroundColor: "var(--color-secondary)",
-              color: "#111",
-              border: "none",
-              cursor: "pointer",
-              fontWeight: 600,
-            }}
-          >
+          <button onClick={handleSearch} className="search-btn">
             Buscar
           </button>
         </div>

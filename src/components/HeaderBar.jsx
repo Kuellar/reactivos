@@ -88,8 +88,9 @@ export default function HeaderBar() {
         ) : (
           <Button
             onClick={() => navigate("/login")}
-            type="default"
+            type="text"
             size="small"
+            className="login-btn"
           >
             Iniciar sesión
           </Button>

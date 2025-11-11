@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&family=Roboto:wght@300;400;500;700&display=swap');
+@import url("https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&family=Roboto:wght@300;400;500;700&display=swap");
 :root {
   --color-primary: #223c6a;
   --color-secondary: #e69b0a;
@@ -61,4 +61,38 @@ body {
   border-radius: 12px;
   padding: 16px;
   box-shadow: 0 1px 6px rgba(0, 0, 0, 0.04);
+}
+
+.login-btn {
+  color: #fff !important;
+  font-weight: 500;
+  transition: all 0.3s ease;
+}
+
+.login-btn:hover {
+  color: var(--color-secondary) !important;
+  background-color: transparent !important;
+}
+
+.search-btn {
+  padding: 8px 12px;
+  border-radius: 999px;
+  background-color: var(--color-secondary);
+  color: #111;
+  border: none;
+  cursor: pointer;
+  font-weight: 600;
+  transition: all 0.25s ease;
+  box-shadow: 0 0 0 transparent;
+}
+
+.search-btn:hover {
+  transform: translateY(-1px);
+  background-color: color-mix(in srgb, var(--color-secondary) 90%, white 10%);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+}
+
+.search-btn:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
 }

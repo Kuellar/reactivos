@@ -55,9 +55,6 @@ export default function Login() {
         <Button type="primary" block onClick={handleEmailLogin}>
           Iniciar sesión
         </Button>
-        <Button style={{ marginTop: 8 }} block onClick={handleGoogle}>
-          Iniciar con Google
-        </Button>
       </Card>
     </div>
   );
