@@ -18,6 +18,7 @@ import {
   doc,
   addDoc,
   updateDoc,
+  writeBatch,
 } from "firebase/firestore";
 import dayjs from "dayjs";
 import { db } from "../firebase";
@@ -33,6 +34,11 @@ export default function DataTable() {
   const [loading, setLoading] = useState(false);
   const [showPopupDelete, setShowPopupDelete] = useState(false);
   const [deleteReactive, setDeleteReactive] = useState(null);
+
+  // Batch CSV
+  const [showBatchModal, setShowBatchModal] = useState(false);
+  const [batchCsvText, setBatchCsvText] = useState("");
+  const [batchLoading, setBatchLoading] = useState(false);
 
   const [professors, setProfessors] = useState([]);
   const [locations, setLocations] = useState([]);
@@ -115,15 +121,13 @@ export default function DataTable() {
         const prof = professors.find((p) => p.id === r.docenteId);
         const loc = locations.find((l) => l.id === r.lugarId);
         return (
-          r.nombre?.toLowerCase().includes(lowerQuery) ||          r.marca?.toLowerCase().includes(lowerQuery) ||
+          r.nombre?.toLowerCase().includes(lowerQuery) ||
+          r.marca?.toLowerCase().includes(lowerQuery) ||
           r.clase?.toLowerCase().includes(lowerQuery) ||
           r.gabinete?.toLowerCase().includes(lowerQuery) ||
           r.codigo?.toLowerCase().includes(lowerQuery) ||
           r.hDes?.toLowerCase().includes(lowerQuery) ||
-          (prof &&
-            `${prof.firstName} ${prof.lastName}`
-              .toLowerCase()
-              .includes(lowerQuery)) ||
+          (prof && `${prof.firstName} ${prof.lastName}`.toLowerCase().includes(lowerQuery)) ||
           (loc && loc.name.toLowerCase().includes(lowerQuery))
         );
       });
@@ -132,6 +136,137 @@ export default function DataTable() {
       filtered = filtered.filter((r) => r.lugarId === locFilter);
     }
     setFilteredData(filtered);
+  };
+
+  // Helpers para batch CSV
+  const normalize = (s = "") => String(s).trim();
+  const toNumber = (v) => {
+    if (v === undefined || v === null || v === "") return 0;
+    const n = Number(String(v).replace(/,/g, "."));
+    return isNaN(n) ? 0 : n;
+  };
+  const findProfessorId = (value) => {
+    if (!value) return "";
+    // si ya es un id exacto
+    const byId = professors.find((p) => p.id === value);
+    if (byId) return byId.id;
+    // buscar por nombre completo
+    const v = value.toLowerCase();
+    const byName = professors.find(
+      (p) => `${p.firstName} ${p.lastName}`.toLowerCase() === v
+    );
+    return byName ? byName.id : "";
+  };
+  const findLocationId = (value) => {
+    if (!value) return "";
+    const byId = locations.find((l) => l.id === value);
+    if (byId) return byId.id;
+    const v = value.toLowerCase();
+    const byName = locations.find((l) => l.name.toLowerCase() === v);
+    return byName ? byName.id : "";
+  };
+const parseCsvSemicolon = (text) => {
+  const lines = text.split(/\r?\n/).filter((l) => l.trim() !== "");
+  if (!lines.length) return [];
+
+  const headers = lines[0].split(",").map((h) => normalize(h).toLowerCase());
+
+  return lines.slice(1).map((line) => {
+    const cells = line.split(",");
+    const row = {};
+    headers.forEach((h, idx) => {
+      row[h] = cells[idx] !== undefined ? cells[idx].trim() : "";
+    });
+    return row;
+  });
+};
+
+
+  const handleOpenBatch = () => {
+    setBatchCsvText("");
+    setShowBatchModal(true);
+  };
+
+  const handleBatchFile = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const content = String(ev.target?.result || "");
+      setBatchCsvText(content);
+    };
+    reader.readAsText(file);
+  };
+
+  const handleImportBatch = async () => {
+    if (!batchCsvText.trim()) {
+      message.warning("Carga un CSV o pega su contenido");
+      return;
+    }
+    try {
+      setBatchLoading(true);
+      const rows = parseCsvSemicolon(batchCsvText);
+      if (!rows.length) {
+        message.warning("El CSV no tiene filas");
+        return;
+      }
+
+      // mapeo de nombres posibles -> campos
+      const mapValue = (row, keys) => {
+        for (const k of keys) {
+          const v = row[k];
+          if (v !== undefined) return normalize(v);
+        }
+        return "";
+      };
+
+      const batch = writeBatch(db);
+      let count = 0;
+      rows.forEach((r) => {
+        const nombre = mapValue(r, ["nombre"]);
+        if (!nombre) return; // saltar filas sin nombre
+
+        const docenteRaw = mapValue(r, ["docente", "docenteid", "docente_id", "profesor", "profesorid"]);
+        const lugarRaw = mapValue(r, ["lugar", "lugarid", "lugar_id", "ubicacion", "ubicación"]);
+
+        const data = {
+          nombre,
+          docenteId: findProfessorId(docenteRaw),
+          lugarId: findLocationId(lugarRaw),
+          marca: mapValue(r, ["marca"]),
+          clase: mapValue(r, ["clase", "categoria", "categoría"]),
+          cantidadAlmacenada: toNumber(mapValue(r, ["cantidadalmacenada", "cantidad", "stock"])),
+          fechaDeVencimiento: (() => {
+            const fv = mapValue(r, ["fechadevencimiento", "vencimiento", "fecha_vencimiento"]);
+            if (!fv) return "";
+            const d = dayjs(fv);
+            return d.isValid() ? d.format("YYYY-MM-DD") : fv;
+          })(),
+          gabinete: mapValue(r, ["gabinete"]),
+          codigo: mapValue(r, ["codigo", "código"]),
+          hDes: mapValue(r, ["hdes", "hds", "hojadeseguridad", "linkhdes", "urlhdes"]),
+        };
+
+        const ref = doc(collection(db, "reactives"));
+        batch.set(ref, data);
+        count += 1;
+      });
+
+      if (!count) {
+        message.warning("No se encontraron filas válidas para importar");
+        return;
+      }
+
+      await batch.commit();
+      message.success(`Importación completada: ${count} reactivos`);
+      setShowBatchModal(false);
+      fetchData();
+    } catch (e) {
+      console.error(e);
+      message.error("Error durante la importación");
+    } finally {
+      setBatchLoading(false);
+    }
   };
 
   const handleSearch = () => {
@@ -375,9 +510,12 @@ export default function DataTable() {
       >
         <h2>Reactivos</h2>
         {user && (
-          <Button type="primary" icon={<PlusOutlined />} onClick={handleAdd}>
-            Agregar Reactivo
-          </Button>
+          <div style={{ display: "flex", gap: 8 }}>
+            <Button type="primary" icon={<PlusOutlined />} onClick={handleAdd}>
+              Agregar Reactivo
+            </Button>
+            <Button onClick={handleOpenBatch}>Agregar tabla</Button>
+          </div>
         )}
       </div>
 
@@ -505,6 +643,39 @@ export default function DataTable() {
             </Form>
           </div>
         </div>
+      )}
+
+      {/* MODAL BATCH CSV */}
+      {showBatchModal && (
+        <Modal
+          open={showBatchModal}
+          title="Importar reactivos desde CSV (separado por ;)"
+          onCancel={() => setShowBatchModal(false)}
+          onOk={handleImportBatch}
+          okText={batchLoading ? "Importando..." : "Importar"}
+          okButtonProps={{ loading: batchLoading }}
+          cancelText="Cancelar"
+        >
+          <div style={{ display: "grid", gap: 12 }}>
+            <input type="file" accept=".csv" onChange={handleBatchFile} />
+            <p style={{ margin: 0, color: "#666" }}>
+              Pega el contenido o carga un archivo .csv con cabeceras como:
+              <br />
+              <code>
+                nombre;docente;lugar;marca;clase;cantidadAlmacenada;fechaDeVencimiento;gabinete;codigo;hDes
+              </code>
+            </p>
+            <Input.TextArea
+              rows={8}
+              value={batchCsvText}
+              onChange={(e) => setBatchCsvText(e.target.value)}
+              placeholder={
+                "nombre;docente;lugar;marca;clase;cantidadAlmacenada;fechaDeVencimiento;gabinete;codigo;hDes" +
+                "Ácido acético;Juan Pérez;Bodega;Merck;Reactivo;3;2026-05-01;G1;AA-001;https://..."
+              }
+            />
+          </div>
+        </Modal>
       )}
 
       {showPopupDelete && (
