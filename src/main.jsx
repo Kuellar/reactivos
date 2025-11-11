@@ -6,6 +6,7 @@ import App from "./App";
 import { antdTheme } from "./theme";
 import "antd/dist/reset.css";
 import "./styles/index.css";
+import "./styles/HeaderBar.css";
 
 const root = createRoot(document.getElementById("root"));
 root.render(

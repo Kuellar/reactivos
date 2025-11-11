@@ -63,17 +63,6 @@ body {
   box-shadow: 0 1px 6px rgba(0, 0, 0, 0.04);
 }
 
-.login-btn {
-  color: #fff !important;
-  font-weight: 500;
-  transition: all 0.3s ease;
-}
-
-.login-btn:hover {
-  color: var(--color-secondary) !important;
-  background-color: transparent !important;
-}
-
 .search-btn {
   padding: 8px 12px;
   border-radius: 999px;
