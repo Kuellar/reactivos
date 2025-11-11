@@ -1,6 +1,16 @@
 import React, { useEffect, useState } from "react";
-import { Table, Tag, Button, message, Modal, Form, Input, Select } from "antd";
-import { PlusOutlined, CloseCircleOutlined } from "@ant-design/icons";
+import {
+  Table,
+  Button,
+  message,
+  Modal,
+  Form,
+  Input,
+  Select,
+  DatePicker,
+  InputNumber,
+} from "antd";
+import { PlusOutlined, CloseCircleOutlined, FilePdfOutlined } from "@ant-design/icons";
 import {
   collection,
   getDocs,
@@ -9,6 +19,7 @@ import {
   addDoc,
   updateDoc,
 } from "firebase/firestore";
+import dayjs from "dayjs";
 import { db } from "../firebase";
 import TableActions from "../components/TableActions";
 import { getAuth } from "firebase/auth";
@@ -104,8 +115,11 @@ export default function DataTable() {
         const prof = professors.find((p) => p.id === r.docenteId);
         const loc = locations.find((l) => l.id === r.lugarId);
         return (
-          r.nombre?.toLowerCase().includes(lowerQuery) ||
-          r.descripcion?.toLowerCase().includes(lowerQuery) ||
+          r.nombre?.toLowerCase().includes(lowerQuery) ||          r.marca?.toLowerCase().includes(lowerQuery) ||
+          r.clase?.toLowerCase().includes(lowerQuery) ||
+          r.gabinete?.toLowerCase().includes(lowerQuery) ||
+          r.codigo?.toLowerCase().includes(lowerQuery) ||
+          r.hDes?.toLowerCase().includes(lowerQuery) ||
           (prof &&
             `${prof.firstName} ${prof.lastName}`
               .toLowerCase()
@@ -162,26 +176,42 @@ export default function DataTable() {
   const handleEdit = (record) => {
     setEditReactive(record);
     form.setFieldsValue({
-      nombre: record.nombre || "",
-      descripcion: record.descripcion || "",
-      categoria: record.categoria || "",
-      nivel: record.nivel || "",
-      estado: record.estado || "pendiente",
-      docenteId: record.docenteId || "",
+      nombre: record.nombre || "",      docenteId: record.docenteId || "",
       lugarId: record.lugarId || "",
+      // nuevas columnas
+      marca: record.marca || "",
+      clase: record.clase || "",
+      cantidadAlmacenada:
+        typeof record.cantidadAlmacenada === "number"
+          ? record.cantidadAlmacenada
+          : Number(record.cantidadAlmacenada) || 0,
+      fechaDeVencimiento: record.fechaDeVencimiento
+        ? dayjs(record.fechaDeVencimiento)
+        : null,
+      gabinete: record.gabinete || "",
+      codigo: record.codigo || "",
+      hDes: record.hDes || "",
     });
     setShowPopup(true);
   };
 
   const handleSave = async (values) => {
     const reactiveData = {
-      nombre: values.nombre || "",
-      descripcion: values.descripcion || "",
-      categoria: values.categoria || "",
-      nivel: values.nivel || "",
-      estado: values.estado || "pendiente",
-      docenteId: values.docenteId || "",
+      nombre: values.nombre || "",      docenteId: values.docenteId || "",
       lugarId: values.lugarId || "",
+      // nuevas columnas
+      marca: values.marca || "",
+      clase: values.clase || "",
+      cantidadAlmacenada:
+        typeof values.cantidadAlmacenada === "number"
+          ? values.cantidadAlmacenada
+          : Number(values.cantidadAlmacenada) || 0,
+      fechaDeVencimiento: values.fechaDeVencimiento
+        ? values.fechaDeVencimiento.format("YYYY-MM-DD")
+        : "",
+      gabinete: values.gabinete || "",
+      codigo: values.codigo || "",
+      hDes: values.hDes || "",
     };
 
     try {
@@ -205,7 +235,20 @@ export default function DataTable() {
 
   const columns = [
     { title: "Nombre", dataIndex: "nombre", key: "nombre" },
-    { title: "Descripción", dataIndex: "descripcion", key: "descripcion" },
+    { title: "Marca", dataIndex: "marca", key: "marca" },
+    { title: "Clase", dataIndex: "clase", key: "clase" },
+    {
+      title: "Cantidad almacenada",
+      dataIndex: "cantidadAlmacenada",
+      key: "cantidadAlmacenada",
+      render: (val) => (val ?? "")
+    },
+    {
+      title: "Fecha de vencimiento",
+      dataIndex: "fechaDeVencimiento",
+      key: "fechaDeVencimiento",
+      render: (val) => (val ? dayjs(val).format("YYYY-MM-DD") : "")
+    },
     {
       title: "Docente encargado",
       dataIndex: "docenteId",
@@ -226,21 +269,18 @@ export default function DataTable() {
         return loc ? loc.name : "Sin especificar";
       },
     },
-    { title: "Categoría", dataIndex: "categoria", key: "categoria" },
-    { title: "Nivel", dataIndex: "nivel", key: "nivel" },
+    { title: "Gabinete", dataIndex: "gabinete", key: "gabinete" },
+    { title: "Código", dataIndex: "codigo", key: "codigo" },
     {
-      title: "Estado",
-      dataIndex: "estado",
-      key: "estado",
-      render: (estado) => {
-        const color =
-          estado === "activo"
-            ? "green"
-            : estado === "pendiente"
-            ? "gold"
-            : "default";
-        return <Tag color={color}>{estado || "Sin estado"}</Tag>;
-      },
+      title: "HdeS",
+      dataIndex: "hDes",
+      key: "hDes",
+      render: (url) =>
+        url ? (
+          <a href={url} target="_blank" rel="noopener noreferrer" title="Abrir HdeS">
+            <FilePdfOutlined style={{ fontSize: 18 }} />
+          </a>
+        ) : null,
     },
   ];
 
@@ -373,7 +413,7 @@ export default function DataTable() {
               padding: 30,
               borderRadius: 12,
               minWidth: 400,
-              maxWidth: 600,
+              maxWidth: 700,
               width: "100%",
               boxShadow: "0 8px 20px rgba(0,0,0,0.25)",
             }}
@@ -398,13 +438,6 @@ export default function DataTable() {
                 <Input placeholder="Nombre del reactivo" />
               </Form.Item>
 
-              <Form.Item label="Descripción" name="descripcion">
-                <Input.TextArea
-                  placeholder="Descripción del reactivo"
-                  rows={4}
-                />
-              </Form.Item>
-
               <Form.Item label="Docente encargado" name="docenteId">
                 <Select placeholder="Selecciona un docente" allowClear>
                   <Select.Option value="">Sin docente encargado</Select.Option>
@@ -427,19 +460,33 @@ export default function DataTable() {
                 </Select>
               </Form.Item>
 
-              <Form.Item label="Categoría" name="categoria">
-                <Input placeholder="Categoría" />
+              {/* --- NUEVAS COLUMNAS / CAMPOS --- */}
+              <Form.Item label="Marca" name="marca">
+                <Input placeholder="Marca del reactivo" />
               </Form.Item>
 
-              <Form.Item label="Nivel" name="nivel">
-                <Input placeholder="Nivel" />
+              <Form.Item label="Clase" name="clase">
+                <Input placeholder="Clase" />
               </Form.Item>
 
-              <Form.Item label="Estado" name="estado">
-                <Select>
-                  <Select.Option value="activo">Activo</Select.Option>
-                  <Select.Option value="pendiente">Pendiente</Select.Option>
-                </Select>
+              <Form.Item label="Cantidad almacenada" name="cantidadAlmacenada">
+                <InputNumber min={0} style={{ width: "100%" }} placeholder="0" />
+              </Form.Item>
+
+              <Form.Item label="Fecha de vencimiento" name="fechaDeVencimiento">
+                <DatePicker style={{ width: "100%" }} format="YYYY-MM-DD" />
+              </Form.Item>
+
+              <Form.Item label="Gabinete" name="gabinete">
+                <Input placeholder="Gabinete" />
+              </Form.Item>
+
+              <Form.Item label="Código" name="codigo">
+                <Input placeholder="Código" />
+              </Form.Item>
+
+              <Form.Item label="HdeS" name="hDes">
+                <Input placeholder="Hoja de seguridad / HdeS" />
               </Form.Item>
 
               <div
