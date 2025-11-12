@@ -85,3 +85,18 @@ body {
   transform: translateY(0);
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
 }
+
+@media (max-width: 767px) {
+  .full-width-table {
+    background: white;
+    border-radius: 0;
+    padding: 0;
+    box-shadow: none;
+    border: none;
+    min-height: auto;
+  }
+
+  .ant-layout-content {
+    padding: 0 !important;
+  }
+}

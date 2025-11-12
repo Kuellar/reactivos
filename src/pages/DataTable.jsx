@@ -881,6 +881,7 @@ export default function DataTable() {
             border: "1px solid rgba(0,0,0,0.06)",
             width: "100%",
             maxWidth: 600,
+            marginTop: "5px",
           }}
         >
           <input
