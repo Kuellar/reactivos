@@ -692,24 +692,6 @@ export default function DataTable() {
       const compact = baseColumns.filter((c) =>
         ["nombre", "lugarId", "gabinete"].includes(c.dataIndex)
       );
-      if (user) {
-        compact.push({
-          title: "Acciones",
-          key: "acciones",
-          width: 120,
-          render: (_, record) => (
-            <div
-              className="table-row-actions"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <TableActions
-                onEdit={() => handleEdit(record)}
-                onDelete={() => openDelete(record)}
-              />
-            </div>
-          ),
-        });
-      }
       return compact;
     } else if (isM) {
       const mcols = baseColumns.filter((c) =>
