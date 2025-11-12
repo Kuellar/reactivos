@@ -10,7 +10,11 @@ import {
   DatePicker,
   InputNumber,
 } from "antd";
-import { PlusOutlined, CloseCircleOutlined, FilePdfOutlined } from "@ant-design/icons";
+import {
+  PlusOutlined,
+  CloseCircleOutlined,
+  FilePdfOutlined,
+} from "@ant-design/icons";
 import {
   collection,
   getDocs,
@@ -127,7 +131,10 @@ export default function DataTable() {
           r.gabinete?.toLowerCase().includes(lowerQuery) ||
           r.codigo?.toLowerCase().includes(lowerQuery) ||
           r.hDes?.toLowerCase().includes(lowerQuery) ||
-          (prof && `${prof.firstName} ${prof.lastName}`.toLowerCase().includes(lowerQuery)) ||
+          (prof &&
+            `${prof.firstName} ${prof.lastName}`
+              .toLowerCase()
+              .includes(lowerQuery)) ||
           (loc && loc.name.toLowerCase().includes(lowerQuery))
         );
       });
@@ -140,11 +147,13 @@ export default function DataTable() {
 
   // Helpers para batch CSV
   const normalize = (s = "") => String(s).trim();
+
   const toNumber = (v) => {
     if (v === undefined || v === null || v === "") return 0;
     const n = Number(String(v).replace(/,/g, "."));
     return isNaN(n) ? 0 : n;
   };
+
   const findProfessorId = (value) => {
     if (!value) return "";
     // si ya es un id exacto
@@ -157,6 +166,7 @@ export default function DataTable() {
     );
     return byName ? byName.id : "";
   };
+
   const findLocationId = (value) => {
     if (!value) return "";
     const byId = locations.find((l) => l.id === value);
@@ -165,22 +175,69 @@ export default function DataTable() {
     const byName = locations.find((l) => l.name.toLowerCase() === v);
     return byName ? byName.id : "";
   };
-const parseCsvSemicolon = (text) => {
-  const lines = text.split(/\r?\n/).filter((l) => l.trim() !== "");
-  if (!lines.length) return [];
 
-  const headers = lines[0].split(",").map((h) => normalize(h).toLowerCase());
+  const parseCsvFlexible = (text, customDelim) => {
+    const lines = text.split(/\r?\n/).filter((l) => l.trim() !== "");
+    if (!lines.length) return [];
 
-  return lines.slice(1).map((line) => {
-    const cells = line.split(",");
-    const row = {};
-    headers.forEach((h, idx) => {
-      row[h] = cells[idx] !== undefined ? cells[idx].trim() : "";
+    const sample = lines[0];
+    const delim =
+      customDelim ||
+      (sample.includes(";") && !sample.includes(",") ? ";" : ",");
+
+    const parseLine = (line) => {
+      const cells = [];
+      let cur = "";
+      let inQuotes = false;
+
+      for (let i = 0; i < line.length; i++) {
+        const ch = line[i];
+
+        if (ch === '"') {
+          // Handle escaped quote ""
+          if (inQuotes && line[i + 1] === '"') {
+            cur += '"';
+            i++;
+          } else {
+            inQuotes = !inQuotes; // toggle quote state
+          }
+        } else if (ch === delim && !inQuotes) {
+          cells.push(cur);
+          cur = "";
+        } else {
+          cur += ch;
+        }
+      }
+
+      cells.push(cur);
+      return cells;
+    };
+
+    const unquote = (s) => {
+      if (s == null) return "";
+      let v = s.trim();
+      if (v.startsWith('"') && v.endsWith('"')) {
+        v = v.slice(1, -1);
+      }
+      return v.replace(/""/g, '"');
+    };
+
+    // Parse headers
+    const headers = parseLine(lines[0]).map((h) =>
+      normalize(unquote(h)).toLowerCase()
+    );
+
+    // Parse rows
+    return lines.slice(1).map((line) => {
+      const cells = parseLine(line);
+      const row = {};
+      headers.forEach((h, idx) => {
+        const raw = cells[idx];
+        row[h] = raw !== undefined ? unquote(raw) : "";
+      });
+      return row;
     });
-    return row;
-  });
-};
-
+  };
 
   const handleOpenBatch = () => {
     setBatchCsvText("");
@@ -200,18 +257,17 @@ const parseCsvSemicolon = (text) => {
 
   const handleImportBatch = async () => {
     if (!batchCsvText.trim()) {
-      message.warning("Carga un CSV o pega su contenido");
+      console.error("Carga un CSV o pega su contenido");
       return;
     }
     try {
       setBatchLoading(true);
-      const rows = parseCsvSemicolon(batchCsvText);
+      const rows = parseCsvFlexible(batchCsvText);
       if (!rows.length) {
-        message.warning("El CSV no tiene filas");
+        console.error("El CSV no tiene filas");
         return;
       }
 
-      // mapeo de nombres posibles -> campos
       const mapValue = (row, keys) => {
         for (const k of keys) {
           const v = row[k];
@@ -224,10 +280,22 @@ const parseCsvSemicolon = (text) => {
       let count = 0;
       rows.forEach((r) => {
         const nombre = mapValue(r, ["nombre"]);
-        if (!nombre) return; // saltar filas sin nombre
+        if (!nombre) return;
 
-        const docenteRaw = mapValue(r, ["docente", "docenteid", "docente_id", "profesor", "profesorid"]);
-        const lugarRaw = mapValue(r, ["lugar", "lugarid", "lugar_id", "ubicacion", "ubicación"]);
+        const docenteRaw = mapValue(r, [
+          "docente",
+          "docenteid",
+          "docente_id",
+          "profesor",
+          "profesorid",
+        ]);
+        const lugarRaw = mapValue(r, [
+          "lugar",
+          "lugarid",
+          "lugar_id",
+          "ubicacion",
+          "ubicación",
+        ]);
 
         const data = {
           nombre,
@@ -235,16 +303,28 @@ const parseCsvSemicolon = (text) => {
           lugarId: findLocationId(lugarRaw),
           marca: mapValue(r, ["marca"]),
           clase: mapValue(r, ["clase", "categoria", "categoría"]),
-          cantidadAlmacenada: toNumber(mapValue(r, ["cantidadalmacenada", "cantidad", "stock"])),
+          cantidadAlmacenada: toNumber(
+            mapValue(r, ["cantidadalmacenada", "cantidad", "stock"])
+          ),
           fechaDeVencimiento: (() => {
-            const fv = mapValue(r, ["fechadevencimiento", "vencimiento", "fecha_vencimiento"]);
+            const fv = mapValue(r, [
+              "fechadevencimiento",
+              "vencimiento",
+              "fecha_vencimiento",
+            ]);
             if (!fv) return "";
             const d = dayjs(fv);
             return d.isValid() ? d.format("YYYY-MM-DD") : fv;
           })(),
           gabinete: mapValue(r, ["gabinete"]),
           codigo: mapValue(r, ["codigo", "código"]),
-          hDes: mapValue(r, ["hdes", "hds", "hojadeseguridad", "linkhdes", "urlhdes"]),
+          hDes: mapValue(r, [
+            "hdes",
+            "hds",
+            "hojadeseguridad",
+            "linkhdes",
+            "urlhdes",
+          ]),
         };
 
         const ref = doc(collection(db, "reactives"));
@@ -253,17 +333,17 @@ const parseCsvSemicolon = (text) => {
       });
 
       if (!count) {
-        message.warning("No se encontraron filas válidas para importar");
+        console.error("No se encontraron filas válidas para importar");
         return;
       }
 
       await batch.commit();
-      message.success(`Importación completada: ${count} reactivos`);
+      console.error(`Importación completada: ${count} reactivos`);
       setShowBatchModal(false);
       fetchData();
     } catch (e) {
       console.error(e);
-      message.error("Error durante la importación");
+      console.error("Error durante la importación");
     } finally {
       setBatchLoading(false);
     }
@@ -311,7 +391,8 @@ const parseCsvSemicolon = (text) => {
   const handleEdit = (record) => {
     setEditReactive(record);
     form.setFieldsValue({
-      nombre: record.nombre || "",      docenteId: record.docenteId || "",
+      nombre: record.nombre || "",
+      docenteId: record.docenteId || "",
       lugarId: record.lugarId || "",
       // nuevas columnas
       marca: record.marca || "",
@@ -332,7 +413,8 @@ const parseCsvSemicolon = (text) => {
 
   const handleSave = async (values) => {
     const reactiveData = {
-      nombre: values.nombre || "",      docenteId: values.docenteId || "",
+      nombre: values.nombre || "",
+      docenteId: values.docenteId || "",
       lugarId: values.lugarId || "",
       // nuevas columnas
       marca: values.marca || "",
@@ -376,13 +458,13 @@ const parseCsvSemicolon = (text) => {
       title: "Cantidad almacenada",
       dataIndex: "cantidadAlmacenada",
       key: "cantidadAlmacenada",
-      render: (val) => (val ?? "")
+      render: (val) => val ?? "",
     },
     {
       title: "Fecha de vencimiento",
       dataIndex: "fechaDeVencimiento",
       key: "fechaDeVencimiento",
-      render: (val) => (val ? dayjs(val).format("YYYY-MM-DD") : "")
+      render: (val) => (val ? dayjs(val).format("YYYY-MM-DD") : ""),
     },
     {
       title: "Docente encargado",
@@ -412,7 +494,12 @@ const parseCsvSemicolon = (text) => {
       key: "hDes",
       render: (url) =>
         url ? (
-          <a href={url} target="_blank" rel="noopener noreferrer" title="Abrir HdeS">
+          <a
+            href={url}
+            target="_blank"
+            rel="noopener noreferrer"
+            title="Abrir HdeS"
+          >
             <FilePdfOutlined style={{ fontSize: 18 }} />
           </a>
         ) : null,
@@ -608,7 +695,11 @@ const parseCsvSemicolon = (text) => {
               </Form.Item>
 
               <Form.Item label="Cantidad almacenada" name="cantidadAlmacenada">
-                <InputNumber min={0} style={{ width: "100%" }} placeholder="0" />
+                <InputNumber
+                  min={0}
+                  style={{ width: "100%" }}
+                  placeholder="0"
+                />
               </Form.Item>
 
               <Form.Item label="Fecha de vencimiento" name="fechaDeVencimiento">
@@ -655,24 +746,61 @@ const parseCsvSemicolon = (text) => {
           okText={batchLoading ? "Importando..." : "Importar"}
           okButtonProps={{ loading: batchLoading }}
           cancelText="Cancelar"
+          width="min(90vw, 900px)"
+          styles={{ padding: 24 }}
+          destroyOnClose={true}
         >
           <div style={{ display: "grid", gap: 12 }}>
-            <input type="file" accept=".csv" onChange={handleBatchFile} />
+            {/* make file input full-width and nicer spacing */}
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <input
+                type="file"
+                accept=".csv"
+                onChange={handleBatchFile}
+                style={{
+                  width: "100%",
+                  padding: "6px 10px",
+                  borderRadius: 6,
+                  border: "1px solid #e6e6e6",
+                  background: "#fff",
+                  boxSizing: "border-box",
+                }}
+              />
+            </div>
+
             <p style={{ margin: 0, color: "#666" }}>
               Pega el contenido o carga un archivo .csv con cabeceras como:
               <br />
-              <code>
-                nombre;docente;lugar;marca;clase;cantidadAlmacenada;fechaDeVencimiento;gabinete;codigo;hDes
+              <code
+                style={{
+                  display: "block",
+                  marginTop: 8,
+                  padding: "8px",
+                  background: "#f7f7f7",
+                  borderRadius: 6,
+                  fontSize: 12,
+                  whiteSpace: "pre-wrap",
+                  wordBreak: "break-word",
+                }}
+              >
+                nombre,docente,lugar,marca,clase,cantidadAlmacenada,fechaDeVencimiento,gabinete,codigo,hDes
               </code>
             </p>
+
             <Input.TextArea
               rows={8}
               value={batchCsvText}
               onChange={(e) => setBatchCsvText(e.target.value)}
               placeholder={
-                "nombre;docente;lugar;marca;clase;cantidadAlmacenada;fechaDeVencimiento;gabinete;codigo;hDes" +
-                "Ácido acético;Juan Pérez;Bodega;Merck;Reactivo;3;2026-05-01;G1;AA-001;https://..."
+                "Ejemplo de fila:\n" +
+                "nombre,docente,lugar,marca,clase,cantidadAlmacenada,fechaDeVencimiento,gabinete,codigo,hDes\n" +
+                '"Prueba Borrar","","204","Merck","3, 6.1","1","2029-07-31","B","205-3-A-13","https://www.google.com/"'
               }
+              style={{
+                width: "100%",
+                boxSizing: "border-box",
+                resize: "vertical",
+              }}
             />
           </div>
         </Modal>
@@ -684,8 +812,7 @@ const parseCsvSemicolon = (text) => {
           title="Confirmar eliminación"
           onOk={handleDelete}
           onCancel={() => {
-            setShowPopupDelete(false);
-            setDeleteReactive(null);
+            setShowPopupDelete(false), setDeleteReactive(null);
           }}
           okText="Eliminar"
           okType="danger"
