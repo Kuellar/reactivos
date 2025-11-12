@@ -57,6 +57,25 @@ export default function DataTable() {
   const location = useLocation();
   const navigate = useNavigate();
 
+  // =========================
+  // Helpers de ordenamiento
+  // =========================
+  const normStr = (s) => (s ?? "").toString().trim().toLowerCase();
+  const naturalCompare = (a, b) =>
+    normStr(a).localeCompare(normStr(b), undefined, {
+      numeric: true,
+      sensitivity: "base",
+    });
+
+  const getProfessorName = (id) => {
+    const p = professors.find((x) => x.id === id);
+    return p ? `${p.firstName} ${p.lastName}` : "";
+  };
+  const getLocationName = (id) => {
+    const l = locations.find((x) => x.id === id);
+    return l ? l.name : "";
+  };
+
   // Obtener ?query= y ?location= de la URL al cargar
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -451,20 +470,47 @@ export default function DataTable() {
   };
 
   const columns = [
-    { title: "Nombre", dataIndex: "nombre", key: "nombre" },
-    { title: "Marca", dataIndex: "marca", key: "marca" },
-    { title: "Clase", dataIndex: "clase", key: "clase" },
+    {
+      title: "Nombre",
+      dataIndex: "nombre",
+      key: "nombre",
+      sorter: (a, b) => naturalCompare(a.nombre, b.nombre),
+      sortDirections: ["ascend", "descend"],
+    },
+    {
+      title: "Marca",
+      dataIndex: "marca",
+      key: "marca",
+      sorter: (a, b) => naturalCompare(a.marca, b.marca),
+      sortDirections: ["ascend", "descend"],
+    },
+    {
+      title: "Clase",
+      dataIndex: "clase",
+      key: "clase",
+      sorter: (a, b) => naturalCompare(a.clase, b.clase),
+      sortDirections: ["ascend", "descend"],
+    },
     {
       title: "Cantidad almacenada",
       dataIndex: "cantidadAlmacenada",
       key: "cantidadAlmacenada",
       render: (val) => val ?? "",
+      // Intencionalmente SIN sorter (requerimiento: no ordenar por cantidad)
     },
     {
       title: "Fecha de vencimiento",
       dataIndex: "fechaDeVencimiento",
       key: "fechaDeVencimiento",
       render: (val) => (val ? dayjs(val).format("YYYY-MM-DD") : ""),
+      sorter: (a, b) =>
+        (a.fechaDeVencimiento
+          ? dayjs(a.fechaDeVencimiento).valueOf()
+          : Number.NEGATIVE_INFINITY) -
+        (b.fechaDeVencimiento
+          ? dayjs(b.fechaDeVencimiento).valueOf()
+          : Number.NEGATIVE_INFINITY),
+      sortDirections: ["ascend", "descend"],
     },
     {
       title: "Docente encargado",
@@ -476,6 +522,9 @@ export default function DataTable() {
           ? `${prof.firstName} ${prof.lastName}`
           : "Sin docente encargado";
       },
+      sorter: (a, b) =>
+        naturalCompare(getProfessorName(a.docenteId), getProfessorName(b.docenteId)),
+      sortDirections: ["ascend", "descend"],
     },
     {
       title: "Lugar",
@@ -485,9 +534,24 @@ export default function DataTable() {
         const loc = locations.find((l) => l.id === id);
         return loc ? loc.name : "Sin especificar";
       },
+      sorter: (a, b) =>
+        naturalCompare(getLocationName(a.lugarId), getLocationName(b.lugarId)),
+      sortDirections: ["ascend", "descend"],
     },
-    { title: "Gabinete", dataIndex: "gabinete", key: "gabinete" },
-    { title: "Código", dataIndex: "codigo", key: "codigo" },
+    {
+      title: "Gabinete",
+      dataIndex: "gabinete",
+      key: "gabinete",
+      sorter: (a, b) => naturalCompare(a.gabinete, b.gabinete),
+      sortDirections: ["ascend", "descend"],
+    },
+    {
+      title: "Código",
+      dataIndex: "codigo",
+      key: "codigo",
+      sorter: (a, b) => naturalCompare(a.codigo, b.codigo), // orden natural 1,2,10
+      sortDirections: ["ascend", "descend"],
+    },
     {
       title: "HdeS",
       dataIndex: "hDes",
@@ -503,6 +567,7 @@ export default function DataTable() {
             <FilePdfOutlined style={{ fontSize: 18 }} />
           </a>
         ) : null,
+      // Intencionalmente SIN sorter (requerimiento)
     },
   ];
 
@@ -572,8 +637,7 @@ export default function DataTable() {
                 gap: 4,
               }}
             >
-              {locations.find((l) => l.id === locationFilter)?.name ||
-                "Ubicación"}
+              {locations.find((l) => l.id === locationFilter)?.name || "Ubicación"}
               <CloseCircleOutlined
                 onClick={clearLocationFilter}
                 style={{ cursor: "pointer", fontSize: 12 }}
@@ -612,6 +676,8 @@ export default function DataTable() {
         loading={loading}
         pagination={{ pageSize: 10 }}
         rowKey={(r) => r.id}
+        // tooltip por defecto para indicar que se puede ordenar al hacer click
+        showSorterTooltip
       />
 
       {/* MODAL CREAR / EDITAR */}
@@ -656,9 +722,7 @@ export default function DataTable() {
               <Form.Item
                 label="Nombre"
                 name="nombre"
-                rules={[
-                  { required: true, message: "El nombre es obligatorio" },
-                ]}
+                rules={[{ required: true, message: "El nombre es obligatorio" }]}
               >
                 <Input placeholder="Nombre del reactivo" />
               </Form.Item>
@@ -695,11 +759,7 @@ export default function DataTable() {
               </Form.Item>
 
               <Form.Item label="Cantidad almacenada" name="cantidadAlmacenada">
-                <InputNumber
-                  min={0}
-                  style={{ width: "100%" }}
-                  placeholder="0"
-                />
+                <InputNumber min={0} style={{ width: "100%" }} placeholder="0" />
               </Form.Item>
 
               <Form.Item label="Fecha de vencimiento" name="fechaDeVencimiento">
