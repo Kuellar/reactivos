@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import {
   Table,
   Button,
@@ -9,6 +9,9 @@ import {
   Select,
   DatePicker,
   InputNumber,
+  Collapse,
+  Grid,
+  Space,
 } from "antd";
 import {
   PlusOutlined,
@@ -30,6 +33,10 @@ import TableActions from "../components/TableActions";
 import { getAuth } from "firebase/auth";
 import { useLocation, useNavigate } from "react-router-dom";
 
+const { Panel } = Collapse;
+const MD = 768;
+const M = 1200;
+
 export default function DataTable() {
   const [data, setData] = useState([]);
   const [filteredData, setFilteredData] = useState([]);
@@ -39,7 +46,6 @@ export default function DataTable() {
   const [showPopupDelete, setShowPopupDelete] = useState(false);
   const [deleteReactive, setDeleteReactive] = useState(null);
 
-  // Batch CSV
   const [showBatchModal, setShowBatchModal] = useState(false);
   const [batchCsvText, setBatchCsvText] = useState("");
   const [batchLoading, setBatchLoading] = useState(false);
@@ -57,9 +63,24 @@ export default function DataTable() {
   const location = useLocation();
   const navigate = useNavigate();
 
-  // =========================
-  // Helpers de ordenamiento / búsqueda
-  // =========================
+  const [expandedRowKeys, setExpandedRowKeys] = useState([]);
+
+  const screens = Grid.useBreakpoint();
+  const isCompact = !screens?.md;
+
+  const [width, setWidth] = useState(
+    typeof window !== "undefined" ? window.innerWidth : 1200
+  );
+  const isSmall = width < MD;
+  const isM = width >= MD && width < M;
+  const expansionAllowed = width < M;
+
+  useEffect(() => {
+    const onResize = () => setWidth(window.innerWidth);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+
   const normStr = (s) => (s ?? "").toString().trim().toLowerCase();
   const stripDiacritics = (s) =>
     (s ?? "")
@@ -68,7 +89,6 @@ export default function DataTable() {
       .replace(/[\u0300-\u036f]/g, "");
   const normalizeForSearch = (s) => stripDiacritics(normStr(s));
 
-  // Ordenamiento "natural": 1, 2, 10 (y además ignora acentos/mayúsculas)
   const naturalCompare = (a, b) =>
     stripDiacritics(a)
       .toString()
@@ -86,12 +106,8 @@ export default function DataTable() {
     return l ? l.name : "";
   };
 
-  // =========================
-  // Cantidad: valor + unidad
-  // =========================
   const ALLOWED_UNITS = ["L", "mL", "g", "Kg"];
 
-  // Convierte texto como "1,5 L" / "2.5 Kg" / "300 mL" en { valor, unidad }
   const parseQuantity = (raw) => {
     if (!raw) return { valor: null, unidad: "" };
     const txt = String(raw).trim();
@@ -115,15 +131,18 @@ export default function DataTable() {
 
   const formatQuantity = (record) => {
     if (record?.cantidadValor != null && record?.cantidadUnidad) {
-      return `${record.cantidadValor} ${record.cantidadUnidad}`;
+      const v = Math.round(record.cantidadValor * 1000000) / 1000000; // avoid floating garbage
+      return `${v} ${record.cantidadUnidad}`;
     }
-    if (record?.cantidadAlmacenada != null && record?.cantidadAlmacenada !== "") {
+    if (
+      record?.cantidadAlmacenada != null &&
+      record?.cantidadAlmacenada !== ""
+    ) {
       return String(record.cantidadAlmacenada);
     }
     return "";
   };
 
-  // Obtener ?query= y ?location= de la URL al cargar
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const initialQuery = params.get("query") || "";
@@ -178,7 +197,6 @@ export default function DataTable() {
     fetchData();
   }, [professors, locations]);
 
-  // Reaplicar filtros cuando cambian query o locationFilter
   useEffect(() => {
     applyFilters(data, query, locationFilter);
   }, [query, locationFilter, data]);
@@ -214,7 +232,6 @@ export default function DataTable() {
     setFilteredData(filtered);
   };
 
-  // Helpers para batch CSV
   const normalize = (s = "") => String(s).trim();
 
   const toNumber = (v) => {
@@ -361,14 +378,17 @@ export default function DataTable() {
           "ubicación",
         ]);
 
-        // ---- Cantidad desde CSV ----
-        // 1) columnas separadas: cantidadvalor + cantidadunidad
-        // 2) o una sola: cantidadalmacenada (e.g., "500 mL")
         let cantidadValor = null;
         let cantidadUnidad = "";
 
-        const cantidadValorRaw = mapValue(r, ["cantidadvalor", "cantidad_valor"]);
-        const cantidadUnidadRaw = mapValue(r, ["cantidadunidad", "cantidad_unidad"]);
+        const cantidadValorRaw = mapValue(r, [
+          "cantidadvalor",
+          "cantidad_valor",
+        ]);
+        const cantidadUnidadRaw = mapValue(r, [
+          "cantidadunidad",
+          "cantidad_unidad",
+        ]);
         const cantidadAlmacenadaRaw = mapValue(r, [
           "cantidadalmacenada",
           "cantidad",
@@ -377,7 +397,9 @@ export default function DataTable() {
 
         if (cantidadValorRaw || cantidadUnidadRaw) {
           const tmp = parseQuantity(
-            `${cantidadValorRaw}${cantidadUnidadRaw ? " " + cantidadUnidadRaw : ""}`
+            `${cantidadValorRaw}${
+              cantidadUnidadRaw ? " " + cantidadUnidadRaw : ""
+            }`
           );
           cantidadValor = tmp.valor;
           cantidadUnidad = tmp.unidad;
@@ -395,6 +417,7 @@ export default function DataTable() {
           clase: mapValue(r, ["clase", "categoria", "categoría"]),
           cantidadValor: cantidadValor,
           cantidadUnidad: cantidadUnidad,
+          cantidadAlmacenada: cantidadAlmacenadaRaw || "",
           fechaDeVencimiento: (() => {
             const fv = mapValue(r, [
               "fechadevencimiento",
@@ -463,6 +486,9 @@ export default function DataTable() {
       setShowPopupDelete(false);
       setDeleteReactive(null);
       fetchData();
+      if (expandedRowKeys.includes(deleteReactive.id)) {
+        setExpandedRowKeys([]);
+      }
     } catch (err) {
       console.error(err);
       message.error("Error al eliminar el reactivo");
@@ -479,21 +505,29 @@ export default function DataTable() {
 
   const handleEdit = (record) => {
     setEditReactive(record);
+    let initialValor = null;
+    let initialUnidad = "";
+
+    if (record.cantidadValor != null) {
+      initialValor = record.cantidadValor;
+      initialUnidad = record.cantidadUnidad || "";
+    } else if (record.cantidadAlmacenada) {
+      const parsed = parseQuantity(record.cantidadAlmacenada);
+      initialValor = parsed.valor;
+      initialUnidad = parsed.unidad;
+    } else if (record.cantidadAlmacenada === 0) {
+      initialValor = 0;
+      initialUnidad = "";
+    }
+
     form.setFieldsValue({
       nombre: record.nombre || "",
       docenteId: record.docenteId || "",
       lugarId: record.lugarId || "",
       marca: record.marca || "",
       clase: record.clase || "",
-      cantidadValor:
-        typeof record.cantidadValor === "number"
-          ? record.cantidadValor
-          : record.cantidadValor != null
-          ? Number(record.cantidadValor)
-          : record.cantidadAlmacenada != null
-          ? Number(record.cantidadAlmacenada) || null
-          : null,
-      cantidadUnidad: record.cantidadUnidad || "",
+      cantidadValor: initialValor != null ? initialValor : undefined,
+      cantidadUnidad: initialUnidad || undefined,
       fechaDeVencimiento: record.fechaDeVencimiento
         ? dayjs(record.fechaDeVencimiento)
         : null,
@@ -505,11 +539,12 @@ export default function DataTable() {
   };
 
   const handleSave = async (values) => {
+    const cantidadValorRaw = values.cantidadValor;
     const cantidadValor =
-      typeof values.cantidadValor === "number"
-        ? values.cantidadValor
-        : values.cantidadValor != null
-        ? Number(String(values.cantidadValor).replace(",", "."))
+      typeof cantidadValorRaw === "number"
+        ? cantidadValorRaw
+        : cantidadValorRaw != null && cantidadValorRaw !== ""
+        ? Number(String(cantidadValorRaw).replace(",", "."))
         : null;
 
     const cantidadUnidad = values.cantidadUnidad || "";
@@ -522,6 +557,7 @@ export default function DataTable() {
       clase: values.clase || "",
       cantidadValor: cantidadValor,
       cantidadUnidad: cantidadUnidad,
+      cantidadAlmacenada: "",
       fechaDeVencimiento: values.fechaDeVencimiento
         ? values.fechaDeVencimiento.format("YYYY-MM-DD")
         : "",
@@ -549,124 +585,280 @@ export default function DataTable() {
     }
   };
 
-  const columns = [
-    {
-      title: "Nombre",
-      dataIndex: "nombre",
-      key: "nombre",
-      sorter: (a, b) => naturalCompare(a.nombre, b.nombre),
-      sortDirections: ["ascend", "descend"],
-    },
-    {
-      title: "Marca",
-      dataIndex: "marca",
-      key: "marca",
-      sorter: (a, b) => naturalCompare(a.marca, b.marca),
-      sortDirections: ["ascend", "descend"],
-    },
-    {
-      title: "Clase",
-      dataIndex: "clase",
-      key: "clase",
-      sorter: (a, b) => naturalCompare(a.clase, b.clase),
-      sortDirections: ["ascend", "descend"],
-    },
-    {
-      title: "Cantidad almacenada",
-      key: "cantidad",
-      render: (_, record) => formatQuantity(record),
-      // Intencionalmente SIN sorter
-    },
-    {
-      title: "Fecha de vencimiento",
-      dataIndex: "fechaDeVencimiento",
-      key: "fechaDeVencimiento",
-      render: (val) => (val ? dayjs(val).format("YYYY-MM-DD") : ""),
-      sorter: (a, b) =>
-        (a.fechaDeVencimiento
-          ? dayjs(a.fechaDeVencimiento).valueOf()
-          : Number.NEGATIVE_INFINITY) -
-        (b.fechaDeVencimiento
-          ? dayjs(b.fechaDeVencimiento).valueOf()
-          : Number.NEGATIVE_INFINITY),
-      sortDirections: ["ascend", "descend"],
-    },
-    {
-      title: "Docente encargado",
-      dataIndex: "docenteId",
-      key: "docente",
-      render: (id) => {
-        const prof = professors.find((p) => p.id === id);
-        return prof
-          ? `${prof.firstName} ${prof.lastName}`
-          : "Sin docente encargado";
+  const baseColumns = useMemo(
+    () => [
+      {
+        title: "Nombre",
+        dataIndex: "nombre",
+        key: "nombre",
+        sorter: (a, b) => naturalCompare(a.nombre, b.nombre),
       },
-      sorter: (a, b) =>
-        naturalCompare(
-          getProfessorName(a.docenteId),
-          getProfessorName(b.docenteId)
-        ),
-      sortDirections: ["ascend", "descend"],
-    },
-    {
-      title: "Lugar",
-      dataIndex: "lugarId",
-      key: "lugar",
-      render: (id) => {
-        const loc = locations.find((l) => l.id === id);
-        return loc ? loc.name : "Sin especificar";
+      {
+        title: "Marca",
+        dataIndex: "marca",
+        key: "marca",
+        sorter: (a, b) => naturalCompare(a.marca, b.marca),
       },
-      sorter: (a, b) =>
-        naturalCompare(getLocationName(a.lugarId), getLocationName(b.lugarId)),
-      sortDirections: ["ascend", "descend"],
-    },
-    {
-      title: "Gabinete",
-      dataIndex: "gabinete",
-      key: "gabinete",
-      sorter: (a, b) => naturalCompare(a.gabinete, b.gabinete),
-      sortDirections: ["ascend", "descend"],
-    },
-    {
-      title: "Código",
-      dataIndex: "codigo",
-      key: "codigo",
-      // Orden natural: reconoce 1 < 2 < 10 y cadenas mixtas
-      sorter: (a, b) => naturalCompare(a.codigo, b.codigo),
-      sortDirections: ["ascend", "descend"],
-    },
-    {
-      title: "HdeS",
-      dataIndex: "hDes",
-      key: "hDes",
-      render: (url) =>
-        url ? (
-          <a
-            href={url}
-            target="_blank"
-            rel="noopener noreferrer"
-            title="Abrir HdeS"
-          >
-            <FilePdfOutlined style={{ fontSize: 18 }} />
-          </a>
-        ) : null,
-      // Intencionalmente SIN sorter
-    },
-  ];
+      {
+        title: "Clase",
+        dataIndex: "clase",
+        key: "clase",
+        sorter: (a, b) => naturalCompare(a.clase, b.clase),
+      },
+      {
+        title: "Cantidad almacenada",
+        key: "cantidad",
+        dataIndex: "cantidadAlmacenada",
+        render: (_, record) => formatQuantity(record),
+      },
+      {
+        title: "Fecha de vencimiento",
+        dataIndex: "fechaDeVencimiento",
+        key: "fechaDeVencimiento",
+        render: (val) => (val ? dayjs(val).format("YYYY-MM-DD") : ""),
+        sorter: (a, b) =>
+          (a.fechaDeVencimiento
+            ? dayjs(a.fechaDeVencimiento).valueOf()
+            : Number.NEGATIVE_INFINITY) -
+          (b.fechaDeVencimiento
+            ? dayjs(b.fechaDeVencimiento).valueOf()
+            : Number.NEGATIVE_INFINITY),
+      },
+      {
+        title: "Docente encargado",
+        dataIndex: "docenteId",
+        key: "docente",
+        render: (id) => {
+          const prof = professors.find((p) => p.id === id);
+          return prof
+            ? `${prof.firstName} ${prof.lastName}`
+            : "Sin docente encargado";
+        },
+        sorter: (a, b) =>
+          naturalCompare(
+            getProfessorName(a.docenteId),
+            getProfessorName(b.docenteId)
+          ),
+      },
+      {
+        title: "Lugar",
+        dataIndex: "lugarId",
+        key: "lugar",
+        render: (id) => {
+          const loc = locations.find((l) => l.id === id);
+          return loc ? loc.name : "Sin especificar";
+        },
+        sorter: (a, b) =>
+          naturalCompare(
+            getLocationName(a.lugarId),
+            getLocationName(b.lugarId)
+          ),
+      },
+      {
+        title: "Gabinete",
+        dataIndex: "gabinete",
+        key: "gabinete",
+        sorter: (a, b) => naturalCompare(a.gabinete, b.gabinete),
+      },
+      {
+        title: "Código",
+        dataIndex: "codigo",
+        key: "codigo",
+        sorter: (a, b) => naturalCompare(a.codigo, b.codigo),
+      },
+      {
+        title: "HdeS",
+        dataIndex: "hDes",
+        key: "hDes",
+        render: (url) =>
+          url ? (
+            <a
+              href={url}
+              target="_blank"
+              rel="noopener noreferrer"
+              title="Abrir HdeS"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <FilePdfOutlined style={{ fontSize: 18 }} />
+            </a>
+          ) : null,
+      },
+    ],
+    [professors, locations]
+  );
 
-  if (user) {
-    columns.push({
-      title: "Acciones",
-      key: "acciones",
-      width: 140,
-      render: (_, record) => (
-        <TableActions
-          onEdit={() => handleEdit(record)}
-          onDelete={() => openDelete(record)}
-        />
-      ),
-    });
-  }
+  const columns = useMemo(() => {
+    if (isSmall) {
+      const compact = baseColumns.filter((c) =>
+        ["nombre", "lugarId", "gabinete"].includes(c.dataIndex)
+      );
+      if (user) {
+        compact.push({
+          title: "Acciones",
+          key: "acciones",
+          width: 120,
+          render: (_, record) => (
+            <div
+              className="table-row-actions"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <TableActions
+                onEdit={() => handleEdit(record)}
+                onDelete={() => openDelete(record)}
+              />
+            </div>
+          ),
+        });
+      }
+      return compact;
+    } else if (isM) {
+      const mcols = baseColumns.filter((c) =>
+        [
+          "nombre",
+          "marca",
+          "cantidadAlmacenada",
+          "lugarId",
+          "gabinete",
+        ].includes(c.dataIndex)
+      );
+      if (user) {
+        mcols.push({
+          title: "Acciones",
+          key: "acciones",
+          width: 120,
+          render: (_, record) => (
+            <div
+              className="table-row-actions"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <TableActions
+                onEdit={() => handleEdit(record)}
+                onDelete={() => openDelete(record)}
+              />
+            </div>
+          ),
+        });
+      }
+      return mcols;
+    } else {
+      const full = [...baseColumns];
+      if (user) {
+        full.push({
+          title: "Acciones",
+          key: "acciones",
+          width: 140,
+          render: (_, record) => (
+            <div
+              className="table-row-actions"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <TableActions
+                onEdit={() => handleEdit(record)}
+                onDelete={() => openDelete(record)}
+              />
+            </div>
+          ),
+        });
+      }
+      return full;
+    }
+  }, [isSmall, isM, baseColumns, user]);
+
+  const onRow = (record) => ({
+    onClick: (event) => {
+      if (!expansionAllowed) return;
+      const ignore = !!(
+        event.target.closest("button") ||
+        event.target.closest("a") ||
+        event.target.closest(".table-row-actions")
+      );
+      if (ignore) return;
+      setExpandedRowKeys((prev) => (prev[0] === record.id ? [] : [record.id]));
+    },
+  });
+
+  const expandedRowRender = (record) => {
+    return (
+      <Collapse
+        activeKey={expandedRowKeys[0] === record.id ? record.id : null}
+        bordered={false}
+      >
+        <Panel header={null} key={record.id}>
+          <div style={{ display: "grid", gap: 8 }}>
+            <div>
+              <strong>Nombre:</strong> {record.nombre}
+            </div>
+            <div>
+              <strong>Lugar:</strong>{" "}
+              {getLocationName(record.lugarId) || "Sin especificar"}
+            </div>
+            <div>
+              <strong>Gabinete:</strong> {record.gabinete || ""}
+            </div>
+            <div>
+              <strong>Código:</strong> {record.codigo || ""}
+            </div>
+            <div>
+              <strong>Docente encargado:</strong>{" "}
+              {getProfessorName(record.docenteId) || "Sin docente"}
+            </div>
+            <div>
+              <strong>Marca:</strong> {record.marca || ""}
+            </div>
+            <div>
+              <strong>Clase:</strong> {record.clase || ""}
+            </div>
+            <div>
+              <strong>Cantidad almacenada:</strong> {formatQuantity(record)}
+            </div>
+            <div>
+              <strong>Fecha de vencimiento:</strong>{" "}
+              {record.fechaDeVencimiento
+                ? dayjs(record.fechaDeVencimiento).format("YYYY-MM-DD")
+                : ""}
+            </div>
+            <div>
+              <strong>HdeS:</strong>{" "}
+              {record.hDes ? (
+                <a
+                  href={record.hDes}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  Abrir HdeS <FilePdfOutlined />
+                </a>
+              ) : (
+                "—"
+              )}
+            </div>
+
+            {user && (
+              <Space style={{ marginTop: 8 }}>
+                <Button
+                  onClick={() => {
+                    setExpandedRowKeys([]);
+                    handleEdit(record);
+                  }}
+                >
+                  Editar
+                </Button>
+                <Button
+                  danger
+                  onClick={() => {
+                    setExpandedRowKeys([]);
+                    openDelete(record);
+                  }}
+                >
+                  Eliminar
+                </Button>
+              </Space>
+            )}
+          </div>
+        </Panel>
+      </Collapse>
+    );
+  };
 
   return (
     <div className="full-width-table">
@@ -761,9 +953,22 @@ export default function DataTable() {
         pagination={{ pageSize: 10 }}
         rowKey={(r) => r.id}
         showSorterTooltip
+        onRow={onRow}
+        expandable={
+          expansionAllowed
+            ? {
+                expandedRowRender,
+                expandedRowKeys,
+                onExpand: (expanded, record) => {
+                  setExpandedRowKeys(expanded ? [record.id] : []);
+                },
+                expandIcon: () => null,
+              }
+            : undefined
+        }
+        rowClassName={() => (expansionAllowed ? "clickable-row" : "")}
       />
 
-      {/* MODAL CREAR / EDITAR - ahora scrolleable */}
       {showPopup && (
         <div
           style={{
@@ -788,8 +993,8 @@ export default function DataTable() {
               borderRadius: 12,
               width: "100%",
               maxWidth: 700,
-              maxHeight: "90vh", // <= límite de alto
-              overflowY: "auto",   // <= scroll interno
+              maxHeight: "90vh",
+              overflowY: "auto",
               boxShadow: "0 8px 20px rgba(0,0,0,0.25)",
             }}
             onClick={(e) => e.stopPropagation()}
@@ -806,7 +1011,9 @@ export default function DataTable() {
               <Form.Item
                 label="Nombre"
                 name="nombre"
-                rules={[{ required: true, message: "El nombre es obligatorio" }]}
+                rules={[
+                  { required: true, message: "El nombre es obligatorio" },
+                ]}
               >
                 <Input placeholder="Nombre del reactivo" />
               </Form.Item>
@@ -833,7 +1040,6 @@ export default function DataTable() {
                 </Select>
               </Form.Item>
 
-              {/* --- NUEVAS COLUMNAS / CAMPOS --- */}
               <Form.Item label="Marca" name="marca">
                 <Input placeholder="Marca del reactivo" />
               </Form.Item>
@@ -842,7 +1048,6 @@ export default function DataTable() {
                 <Input placeholder="Clase" />
               </Form.Item>
 
-              {/* Cantidad: valor + unidad */}
               <Form.Item label="Cantidad almacenada">
                 <div style={{ display: "flex", gap: 8 }}>
                   <Form.Item
@@ -886,7 +1091,7 @@ export default function DataTable() {
                   </Form.Item>
                 </div>
                 <div style={{ fontSize: 12, color: "#888", marginTop: 4 }}>
-                  Unidades permitidas: L, mL, g, Kg
+                  Unidades permitidas: {ALLOWED_UNITS.join(", ")}
                 </div>
               </Form.Item>
 
@@ -924,7 +1129,6 @@ export default function DataTable() {
         </div>
       )}
 
-      {/* MODAL BATCH CSV (con cuerpo scrolleable en pantallas pequeñas) */}
       {showBatchModal && (
         <Modal
           open={showBatchModal}
@@ -970,10 +1174,6 @@ export default function DataTable() {
                   wordBreak: "break-word",
                 }}
               >
-                {/* Opción 1: columnas separadas */}
-                nombre,docente,lugar,marca,clase,cantidadValor,cantidadUnidad,fechaDeVencimiento,gabinete,codigo,hDes
-                {"\n"}
-                {/* Opción 2: una sola columna con valor+unidad */}
                 nombre,docente,lugar,marca,clase,cantidadAlmacenada,fechaDeVencimiento,gabinete,codigo,hDes
               </code>
             </p>
@@ -984,12 +1184,8 @@ export default function DataTable() {
               onChange={(e) => setBatchCsvText(e.target.value)}
               placeholder={
                 "Ejemplos:\n" +
-                // Opción 1
                 "nombre,docente,lugar,marca,clase,cantidadValor,cantidadUnidad,fechaDeVencimiento,gabinete,codigo,hDes\n" +
-                '"Ácido acético","",204,"Merck","3",1.25,"L","2029-07-31","B","205-3-A-13","https://ejemplo.com/hds.pdf"\n\n' +
-                // Opción 2
-                "nombre,docente,lugar,marca,clase,cantidadAlmacenada,fechaDeVencimiento,gabinete,codigo,hDes\n" +
-                '"Sulfato de cobre","",204,"Sigma","6.1","500 mL","2028-12-31","A","COD-10","https://ejemplo.com/hds2.pdf"'
+                '"Ácido acético","",204,"Merck","3",1.25,"L","2029-07-31","B","205-3-A-13","https://ejemplo.com/hds.pdf"\n\n'
               }
               style={{
                 width: "100%",
@@ -1007,7 +1203,8 @@ export default function DataTable() {
           title="Confirmar eliminación"
           onOk={handleDelete}
           onCancel={() => {
-            setShowPopupDelete(false), setDeleteReactive(null);
+            setShowPopupDelete(false);
+            setDeleteReactive(null);
           }}
           okText="Eliminar"
           okType="danger"
