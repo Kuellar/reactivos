@@ -68,12 +68,13 @@ export default function DataTable() {
       .replace(/[\u0300-\u036f]/g, "");
   const normalizeForSearch = (s) => stripDiacritics(normStr(s));
 
+  // Ordenamiento "natural": 1, 2, 10 (y además ignora acentos/mayúsculas)
   const naturalCompare = (a, b) =>
     stripDiacritics(a)
       .toString()
       .localeCompare(stripDiacritics(b).toString(), undefined, {
         numeric: true,
-        sensitivity: "base", // ignora mayúsculas/acentos
+        sensitivity: "base",
       });
 
   const getProfessorName = (id) => {
@@ -83,6 +84,43 @@ export default function DataTable() {
   const getLocationName = (id) => {
     const l = locations.find((x) => x.id === id);
     return l ? l.name : "";
+  };
+
+  // =========================
+  // Cantidad: valor + unidad
+  // =========================
+  const ALLOWED_UNITS = ["L", "mL", "g", "Kg"];
+
+  // Convierte texto como "1,5 L" / "2.5 Kg" / "300 mL" en { valor, unidad }
+  const parseQuantity = (raw) => {
+    if (!raw) return { valor: null, unidad: "" };
+    const txt = String(raw).trim();
+    const replaced = txt.replace(",", ".");
+    const match = replaced.match(/^(-?\d+(\.\d+)?)\s*([a-zA-Z]+)?$/);
+    if (!match) return { valor: null, unidad: "" };
+    const valor = Number(match[1]);
+    let unidad = (match[3] || "").toLowerCase();
+
+    if (unidad === "l") unidad = "L";
+    else if (unidad === "ml") unidad = "mL";
+    else if (unidad === "kg") unidad = "Kg";
+    else if (unidad === "g") unidad = "g";
+    else unidad = "";
+
+    return {
+      valor: isNaN(valor) ? null : valor,
+      unidad: ALLOWED_UNITS.includes(unidad) ? unidad : "",
+    };
+  };
+
+  const formatQuantity = (record) => {
+    if (record?.cantidadValor != null && record?.cantidadUnidad) {
+      return `${record.cantidadValor} ${record.cantidadUnidad}`;
+    }
+    if (record?.cantidadAlmacenada != null && record?.cantidadAlmacenada !== "") {
+      return String(record.cantidadAlmacenada);
+    }
+    return "";
   };
 
   // Obtener ?query= y ?location= de la URL al cargar
@@ -162,6 +200,7 @@ export default function DataTable() {
           r.hDes,
           profName,
           locName,
+          formatQuantity(r),
         ];
 
         return fields.some((f) =>
@@ -186,10 +225,8 @@ export default function DataTable() {
 
   const findProfessorId = (value) => {
     if (!value) return "";
-    // si ya es un id exacto
     const byId = professors.find((p) => p.id === value);
     if (byId) return byId.id;
-    // buscar por nombre completo
     const v = value.toLowerCase();
     const byName = professors.find(
       (p) => `${p.firstName} ${p.lastName}`.toLowerCase() === v
@@ -224,12 +261,11 @@ export default function DataTable() {
         const ch = line[i];
 
         if (ch === '"') {
-          // Handle escaped quote ""
           if (inQuotes && line[i + 1] === '"') {
             cur += '"';
             i++;
           } else {
-            inQuotes = !inQuotes; // toggle quote state
+            inQuotes = !inQuotes;
           }
         } else if (ch === delim && !inQuotes) {
           cells.push(cur);
@@ -252,12 +288,10 @@ export default function DataTable() {
       return v.replace(/""/g, '"');
     };
 
-    // Parse headers
     const headers = parseLine(lines[0]).map((h) =>
       normalize(unquote(h)).toLowerCase()
     );
 
-    // Parse rows
     return lines.slice(1).map((line) => {
       const cells = parseLine(line);
       const row = {};
@@ -327,15 +361,40 @@ export default function DataTable() {
           "ubicación",
         ]);
 
+        // ---- Cantidad desde CSV ----
+        // 1) columnas separadas: cantidadvalor + cantidadunidad
+        // 2) o una sola: cantidadalmacenada (e.g., "500 mL")
+        let cantidadValor = null;
+        let cantidadUnidad = "";
+
+        const cantidadValorRaw = mapValue(r, ["cantidadvalor", "cantidad_valor"]);
+        const cantidadUnidadRaw = mapValue(r, ["cantidadunidad", "cantidad_unidad"]);
+        const cantidadAlmacenadaRaw = mapValue(r, [
+          "cantidadalmacenada",
+          "cantidad",
+          "stock",
+        ]);
+
+        if (cantidadValorRaw || cantidadUnidadRaw) {
+          const tmp = parseQuantity(
+            `${cantidadValorRaw}${cantidadUnidadRaw ? " " + cantidadUnidadRaw : ""}`
+          );
+          cantidadValor = tmp.valor;
+          cantidadUnidad = tmp.unidad;
+        } else if (cantidadAlmacenadaRaw) {
+          const tmp = parseQuantity(cantidadAlmacenadaRaw);
+          cantidadValor = tmp.valor;
+          cantidadUnidad = tmp.unidad;
+        }
+
         const data = {
           nombre,
           docenteId: findProfessorId(docenteRaw),
           lugarId: findLocationId(lugarRaw),
           marca: mapValue(r, ["marca"]),
           clase: mapValue(r, ["clase", "categoria", "categoría"]),
-          cantidadAlmacenada: toNumber(
-            mapValue(r, ["cantidadalmacenada", "cantidad", "stock"])
-          ),
+          cantidadValor: cantidadValor,
+          cantidadUnidad: cantidadUnidad,
           fechaDeVencimiento: (() => {
             const fv = mapValue(r, [
               "fechadevencimiento",
@@ -424,13 +483,17 @@ export default function DataTable() {
       nombre: record.nombre || "",
       docenteId: record.docenteId || "",
       lugarId: record.lugarId || "",
-      // nuevas columnas
       marca: record.marca || "",
       clase: record.clase || "",
-      cantidadAlmacenada:
-        typeof record.cantidadAlmacenada === "number"
-          ? record.cantidadAlmacenada
-          : Number(record.cantidadAlmacenada) || 0,
+      cantidadValor:
+        typeof record.cantidadValor === "number"
+          ? record.cantidadValor
+          : record.cantidadValor != null
+          ? Number(record.cantidadValor)
+          : record.cantidadAlmacenada != null
+          ? Number(record.cantidadAlmacenada) || null
+          : null,
+      cantidadUnidad: record.cantidadUnidad || "",
       fechaDeVencimiento: record.fechaDeVencimiento
         ? dayjs(record.fechaDeVencimiento)
         : null,
@@ -442,17 +505,23 @@ export default function DataTable() {
   };
 
   const handleSave = async (values) => {
+    const cantidadValor =
+      typeof values.cantidadValor === "number"
+        ? values.cantidadValor
+        : values.cantidadValor != null
+        ? Number(String(values.cantidadValor).replace(",", "."))
+        : null;
+
+    const cantidadUnidad = values.cantidadUnidad || "";
+
     const reactiveData = {
       nombre: values.nombre || "",
       docenteId: values.docenteId || "",
       lugarId: values.lugarId || "",
-      // nuevas columnas
       marca: values.marca || "",
       clase: values.clase || "",
-      cantidadAlmacenada:
-        typeof values.cantidadAlmacenada === "number"
-          ? values.cantidadAlmacenada
-          : Number(values.cantidadAlmacenada) || 0,
+      cantidadValor: cantidadValor,
+      cantidadUnidad: cantidadUnidad,
       fechaDeVencimiento: values.fechaDeVencimiento
         ? values.fechaDeVencimiento.format("YYYY-MM-DD")
         : "",
@@ -504,10 +573,9 @@ export default function DataTable() {
     },
     {
       title: "Cantidad almacenada",
-      dataIndex: "cantidadAlmacenada",
-      key: "cantidadAlmacenada",
-      render: (val) => val ?? "",
-      // Intencionalmente SIN sorter (requerimiento: no ordenar por cantidad)
+      key: "cantidad",
+      render: (_, record) => formatQuantity(record),
+      // Intencionalmente SIN sorter
     },
     {
       title: "Fecha de vencimiento",
@@ -534,7 +602,10 @@ export default function DataTable() {
           : "Sin docente encargado";
       },
       sorter: (a, b) =>
-        naturalCompare(getProfessorName(a.docenteId), getProfessorName(b.docenteId)),
+        naturalCompare(
+          getProfessorName(a.docenteId),
+          getProfessorName(b.docenteId)
+        ),
       sortDirections: ["ascend", "descend"],
     },
     {
@@ -560,7 +631,7 @@ export default function DataTable() {
       title: "Código",
       dataIndex: "codigo",
       key: "codigo",
-      // Orden natural: reconoce 1 < 2 < 10 y también secuencias con guiones/letras
+      // Orden natural: reconoce 1 < 2 < 10 y cadenas mixtas
       sorter: (a, b) => naturalCompare(a.codigo, b.codigo),
       sortDirections: ["ascend", "descend"],
     },
@@ -579,7 +650,7 @@ export default function DataTable() {
             <FilePdfOutlined style={{ fontSize: 18 }} />
           </a>
         ) : null,
-      // Intencionalmente SIN sorter (requerimiento)
+      // Intencionalmente SIN sorter
     },
   ];
 
@@ -649,7 +720,8 @@ export default function DataTable() {
                 gap: 4,
               }}
             >
-              {locations.find((l) => l.id === locationFilter)?.name || "Ubicación"}
+              {locations.find((l) => l.id === locationFilter)?.name ||
+                "Ubicación"}
               <CloseCircleOutlined
                 onClick={clearLocationFilter}
                 style={{ cursor: "pointer", fontSize: 12 }}
@@ -691,7 +763,7 @@ export default function DataTable() {
         showSorterTooltip
       />
 
-      {/* MODAL CREAR / EDITAR */}
+      {/* MODAL CREAR / EDITAR - ahora scrolleable */}
       {showPopup && (
         <div
           style={{
@@ -714,9 +786,10 @@ export default function DataTable() {
               background: "white",
               padding: 30,
               borderRadius: 12,
-              minWidth: 400,
-              maxWidth: 700,
               width: "100%",
+              maxWidth: 700,
+              maxHeight: "90vh", // <= límite de alto
+              overflowY: "auto",   // <= scroll interno
               boxShadow: "0 8px 20px rgba(0,0,0,0.25)",
             }}
             onClick={(e) => e.stopPropagation()}
@@ -769,8 +842,52 @@ export default function DataTable() {
                 <Input placeholder="Clase" />
               </Form.Item>
 
-              <Form.Item label="Cantidad almacenada" name="cantidadAlmacenada">
-                <InputNumber min={0} style={{ width: "100%" }} placeholder="0" />
+              {/* Cantidad: valor + unidad */}
+              <Form.Item label="Cantidad almacenada">
+                <div style={{ display: "flex", gap: 8 }}>
+                  <Form.Item
+                    name="cantidadValor"
+                    noStyle
+                    rules={[
+                      () => ({
+                        validator(_, value) {
+                          if (
+                            value === null ||
+                            value === undefined ||
+                            value === ""
+                          ) {
+                            return Promise.resolve();
+                          }
+                          const n = Number(String(value).replace(",", "."));
+                          if (!isNaN(n) && n >= 0) return Promise.resolve();
+                          return Promise.reject(
+                            new Error("Ingresa un valor numérico válido")
+                          );
+                        },
+                      }),
+                    ]}
+                  >
+                    <InputNumber
+                      min={0}
+                      style={{ width: "100%" }}
+                      placeholder="Valor"
+                    />
+                  </Form.Item>
+                  <Form.Item name="cantidadUnidad" noStyle>
+                    <Select
+                      placeholder="Unidad"
+                      style={{ width: 140 }}
+                      allowClear
+                      options={ALLOWED_UNITS.map((u) => ({
+                        value: u,
+                        label: u,
+                      }))}
+                    />
+                  </Form.Item>
+                </div>
+                <div style={{ fontSize: 12, color: "#888", marginTop: 4 }}>
+                  Unidades permitidas: L, mL, g, Kg
+                </div>
               </Form.Item>
 
               <Form.Item label="Fecha de vencimiento" name="fechaDeVencimiento">
@@ -807,7 +924,7 @@ export default function DataTable() {
         </div>
       )}
 
-      {/* MODAL BATCH CSV */}
+      {/* MODAL BATCH CSV (con cuerpo scrolleable en pantallas pequeñas) */}
       {showBatchModal && (
         <Modal
           open={showBatchModal}
@@ -818,11 +935,10 @@ export default function DataTable() {
           okButtonProps={{ loading: batchLoading }}
           cancelText="Cancelar"
           width="min(90vw, 900px)"
-          styles={{ padding: 24 }}
+          bodyStyle={{ maxHeight: "70vh", overflowY: "auto" }}
           destroyOnClose={true}
         >
           <div style={{ display: "grid", gap: 12 }}>
-            {/* make file input full-width and nicer spacing */}
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
               <input
                 type="file"
@@ -854,6 +970,10 @@ export default function DataTable() {
                   wordBreak: "break-word",
                 }}
               >
+                {/* Opción 1: columnas separadas */}
+                nombre,docente,lugar,marca,clase,cantidadValor,cantidadUnidad,fechaDeVencimiento,gabinete,codigo,hDes
+                {"\n"}
+                {/* Opción 2: una sola columna con valor+unidad */}
                 nombre,docente,lugar,marca,clase,cantidadAlmacenada,fechaDeVencimiento,gabinete,codigo,hDes
               </code>
             </p>
@@ -863,9 +983,13 @@ export default function DataTable() {
               value={batchCsvText}
               onChange={(e) => setBatchCsvText(e.target.value)}
               placeholder={
-                "Ejemplo de fila:\n" +
+                "Ejemplos:\n" +
+                // Opción 1
+                "nombre,docente,lugar,marca,clase,cantidadValor,cantidadUnidad,fechaDeVencimiento,gabinete,codigo,hDes\n" +
+                '"Ácido acético","",204,"Merck","3",1.25,"L","2029-07-31","B","205-3-A-13","https://ejemplo.com/hds.pdf"\n\n' +
+                // Opción 2
                 "nombre,docente,lugar,marca,clase,cantidadAlmacenada,fechaDeVencimiento,gabinete,codigo,hDes\n" +
-                '"Prueba Borrar","","204","Merck","3, 6.1","1","2029-07-31","B","205-3-A-13","https://www.google.com/"'
+                '"Sulfato de cobre","",204,"Sigma","6.1","500 mL","2028-12-31","A","COD-10","https://ejemplo.com/hds2.pdf"'
               }
               style={{
                 width: "100%",
