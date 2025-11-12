@@ -58,14 +58,23 @@ export default function DataTable() {
   const navigate = useNavigate();
 
   // =========================
-  // Helpers de ordenamiento
+  // Helpers de ordenamiento / búsqueda
   // =========================
   const normStr = (s) => (s ?? "").toString().trim().toLowerCase();
+  const stripDiacritics = (s) =>
+    (s ?? "")
+      .toString()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "");
+  const normalizeForSearch = (s) => stripDiacritics(normStr(s));
+
   const naturalCompare = (a, b) =>
-    normStr(a).localeCompare(normStr(b), undefined, {
-      numeric: true,
-      sensitivity: "base",
-    });
+    stripDiacritics(a)
+      .toString()
+      .localeCompare(stripDiacritics(b).toString(), undefined, {
+        numeric: true,
+        sensitivity: "base", // ignora mayúsculas/acentos
+      });
 
   const getProfessorName = (id) => {
     const p = professors.find((x) => x.id === id);
@@ -139,22 +148,24 @@ export default function DataTable() {
   const applyFilters = (items, textQuery, locFilter) => {
     let filtered = items;
     if (textQuery) {
-      const lowerQuery = textQuery.toLowerCase();
+      const normalizedQuery = normalizeForSearch(textQuery);
       filtered = filtered.filter((r) => {
-        const prof = professors.find((p) => p.id === r.docenteId);
-        const loc = locations.find((l) => l.id === r.lugarId);
-        return (
-          r.nombre?.toLowerCase().includes(lowerQuery) ||
-          r.marca?.toLowerCase().includes(lowerQuery) ||
-          r.clase?.toLowerCase().includes(lowerQuery) ||
-          r.gabinete?.toLowerCase().includes(lowerQuery) ||
-          r.codigo?.toLowerCase().includes(lowerQuery) ||
-          r.hDes?.toLowerCase().includes(lowerQuery) ||
-          (prof &&
-            `${prof.firstName} ${prof.lastName}`
-              .toLowerCase()
-              .includes(lowerQuery)) ||
-          (loc && loc.name.toLowerCase().includes(lowerQuery))
+        const profName = getProfessorName(r.docenteId);
+        const locName = getLocationName(r.lugarId);
+
+        const fields = [
+          r.nombre,
+          r.marca,
+          r.clase,
+          r.gabinete,
+          r.codigo,
+          r.hDes,
+          profName,
+          locName,
+        ];
+
+        return fields.some((f) =>
+          normalizeForSearch(f).includes(normalizedQuery)
         );
       });
     }
@@ -549,7 +560,8 @@ export default function DataTable() {
       title: "Código",
       dataIndex: "codigo",
       key: "codigo",
-      sorter: (a, b) => naturalCompare(a.codigo, b.codigo), // orden natural 1,2,10
+      // Orden natural: reconoce 1 < 2 < 10 y también secuencias con guiones/letras
+      sorter: (a, b) => naturalCompare(a.codigo, b.codigo),
       sortDirections: ["ascend", "descend"],
     },
     {
@@ -676,7 +688,6 @@ export default function DataTable() {
         loading={loading}
         pagination={{ pageSize: 10 }}
         rowKey={(r) => r.id}
-        // tooltip por defecto para indicar que se puede ordenar al hacer click
         showSorterTooltip
       />
 
