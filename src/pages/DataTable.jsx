@@ -79,6 +79,12 @@ export default function DataTable() {
   const isM = width >= MD && width < M;
   const expansionAllowed = width < M;
 
+  const showDeleteAll = useMemo(() => {
+    const params = new URLSearchParams(location.search);
+    return String(params.get("borrarTodo") || "").toLowerCase() === "si";
+  }, [location.search]);
+  const [showConfirmDeleteAll, setShowConfirmDeleteAll] = useState(false);
+
   useEffect(() => {
     setCurrentPage(1);
   }, [filteredData]);
@@ -1141,9 +1147,36 @@ export default function DataTable() {
               Agregar Reactivo
             </Button>
             <Button onClick={handleOpenBatch}>Agregar tabla</Button>
-            {/* <Button type="dashed" onClick={handleDeleteAll}>
-              BORRAR TODO
-            </Button> */}
+            {showDeleteAll && (
+              <>
+                <Button
+                  type="dashed"
+                  danger
+                  onClick={() => setShowConfirmDeleteAll(true)}
+                >
+                  BORRAR TODO
+                </Button>
+
+                <Modal
+                  open={showConfirmDeleteAll}
+                  title="Confirmar borrado masivo"
+                  onOk={async () => {
+                    setShowConfirmDeleteAll(false);
+                    await handleDeleteAll();
+                  }}
+                  onCancel={() => setShowConfirmDeleteAll(false)}
+                  okText="Borrar todo"
+                  okType="danger"
+                  cancelText="Cancelar"
+                  okButtonProps={{ danger: true }}
+                >
+                  <p>
+                    ¿Estás seguro de borrar todos los reactivos? Esta acción no
+                    se puede deshacer.
+                  </p>
+                </Modal>
+              </>
+            )}
           </div>
         )}
       </div>
