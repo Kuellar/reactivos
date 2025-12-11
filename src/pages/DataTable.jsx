@@ -45,6 +45,8 @@ export default function DataTable() {
   const [showPopup, setShowPopup] = useState(false);
   const [editReactive, setEditReactive] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [pageSize, setPageSize] = useState(10);
+  const [currentPage, setCurrentPage] = useState(1);
   const [showPopupDelete, setShowPopupDelete] = useState(false);
   const [deleteReactive, setDeleteReactive] = useState(null);
 
@@ -76,6 +78,10 @@ export default function DataTable() {
   const isSmall = width < MD;
   const isM = width >= MD && width < M;
   const expansionAllowed = width < M;
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filteredData]);
 
   useEffect(() => {
     const onResize = () => setWidth(window.innerWidth);
@@ -193,7 +199,13 @@ export default function DataTable() {
   useEffect(() => {
     fetchProfessors();
     fetchLocations();
+    const saved = Number(localStorage.getItem("reactives_page_size") || 0);
+    if (saved) setPageSize(saved);
   }, []);
+
+  useEffect(() => {
+    localStorage.setItem("reactives_page_size", String(pageSize));
+  }, [pageSize]);
 
   useEffect(() => {
     fetchData();
@@ -1141,7 +1153,17 @@ export default function DataTable() {
           columns={columns}
           dataSource={filteredData}
           loading={loading}
-          pagination={{ pageSize: 10 }}
+          pagination={{
+            current: currentPage,
+            pageSize,
+            showSizeChanger: true,
+            pageSizeOptions: ["10", "20", "50", "100"],
+            showTotal: (total, range) => `${range[0]}-${range[1]} de ${total}`,
+            onChange: (page, size) => {
+              setCurrentPage(page);
+              setPageSize(size);
+            },
+          }}
           rowKey={(r) => r.id}
           showSorterTooltip
           onRow={onRow}
