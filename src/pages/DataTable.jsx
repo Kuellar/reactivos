@@ -899,13 +899,13 @@ export default function DataTable() {
   };
 
   const columns = useMemo(() => {
+    let cols;
     if (isSmall) {
-      const compact = baseColumns.filter((c) =>
+      cols = baseColumns.filter((c) =>
         ["nombre", "lugarId", "gabinete"].includes(c.dataIndex)
       );
-      return compact;
     } else if (isM) {
-      const mcols = baseColumns.filter((c) =>
+      cols = baseColumns.filter((c) =>
         [
           "nombre",
           "marca",
@@ -914,48 +914,41 @@ export default function DataTable() {
           "gabinete",
         ].includes(c.dataIndex)
       );
-      if (user) {
-        mcols.push({
-          title: "Acciones",
-          key: "acciones",
-          width: 120,
-          render: (_, record) => (
-            <div
-              className="table-row-actions"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <TableActions
-                onEdit={() => handleEdit(record)}
-                onDelete={() => openDelete(record)}
-              />
-            </div>
-          ),
-        });
-      }
-      return mcols;
     } else {
-      const full = [...baseColumns];
-      if (user) {
-        full.push({
-          title: "Acciones",
-          key: "acciones",
-          width: 140,
-          render: (_, record) => (
-            <div
-              className="table-row-actions"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <TableActions
-                onEdit={() => handleEdit(record)}
-                onDelete={() => openDelete(record)}
-              />
-            </div>
-          ),
-        });
-      }
-      return full;
+      cols = [...baseColumns];
     }
-  }, [isSmall, isM, baseColumns, user]);
+
+    if (user) {
+      cols.push({
+        title: "Acciones",
+        key: "acciones",
+        width: isM ? 120 : 140,
+        render: (_, record) => (
+          <div
+            className="table-row-actions"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <TableActions
+              onEdit={() => handleEdit(record)}
+              onDelete={() => openDelete(record)}
+            />
+          </div>
+        ),
+      });
+    }
+
+    if (cols.length > 0) {
+      const first = { ...cols[0] };
+      first.width = first.width ?? 300;
+      first.ellipsis = first.ellipsis ?? true;
+      first.className = [first.className, "first-col-fixed"]
+        .filter(Boolean)
+        .join(" ");
+      cols[0] = first;
+    }
+
+    return cols;
+  }, [isSmall, isM, baseColumns, user, handleEdit, openDelete]);
 
   const onRow = (record) => ({
     onClick: (event) => {
@@ -1143,28 +1136,31 @@ export default function DataTable() {
         )}
       </div>
 
-      <Table
-        columns={columns}
-        dataSource={filteredData}
-        loading={loading}
-        pagination={{ pageSize: 10 }}
-        rowKey={(r) => r.id}
-        showSorterTooltip
-        onRow={onRow}
-        expandable={
-          expansionAllowed
-            ? {
-                expandedRowRender,
-                expandedRowKeys,
-                onExpand: (expanded, record) => {
-                  setExpandedRowKeys(expanded ? [record.id] : []);
-                },
-                expandIcon: () => null,
-              }
-            : undefined
-        }
-        rowClassName={() => (expansionAllowed ? "clickable-row" : "")}
-      />
+      <div className="reactives-table-wrapper">
+        <Table
+          columns={columns}
+          dataSource={filteredData}
+          loading={loading}
+          pagination={{ pageSize: 10 }}
+          rowKey={(r) => r.id}
+          showSorterTooltip
+          onRow={onRow}
+          tableLayout="fixed"
+          expandable={
+            expansionAllowed
+              ? {
+                  expandedRowRender,
+                  expandedRowKeys,
+                  onExpand: (expanded, record) => {
+                    setExpandedRowKeys(expanded ? [record.id] : []);
+                  },
+                  expandIcon: () => null,
+                }
+              : undefined
+          }
+          rowClassName={() => (expansionAllowed ? "clickable-row" : "")}
+        />
+      </div>
 
       {showPopup && (
         <div
