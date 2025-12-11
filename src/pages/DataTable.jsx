@@ -769,6 +769,28 @@ export default function DataTable() {
     [professors, locations]
   );
 
+  const handleDeleteAll = async () => {
+    try {
+      setLoading(true);
+      const snap = await getDocs(collection(db, "reactives"));
+      if (snap.empty) {
+        console.error("No hay reactivos para borrar");
+        return;
+      }
+      const deletions = [];
+      snap.forEach((d) => {
+        deletions.push(deleteDoc(doc(db, "reactives", d.id)));
+      });
+      await Promise.all(deletions);
+      console.error(`Se borraron ${deletions.length} reactivos`);
+      fetchData();
+    } catch (err) {
+      console.error("Error al borrar todos los reactivos:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const columns = useMemo(() => {
     if (isSmall) {
       const compact = baseColumns.filter((c) =>
@@ -1007,6 +1029,9 @@ export default function DataTable() {
               Agregar Reactivo
             </Button>
             <Button onClick={handleOpenBatch}>Agregar tabla</Button>
+            {/* <Button type="dashed" onClick={handleDeleteAll}>
+              BORRAR TODO
+            </Button> */}
           </div>
         )}
       </div>
