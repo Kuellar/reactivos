@@ -338,6 +338,113 @@ export default function DataTable() {
     reader.readAsText(file);
   };
 
+  const handleDownloadCSV = async () => {
+    try {
+      setLoading(true);
+
+      const reactivesSnap = await getDocs(collection(db, "reactives"));
+      if (reactivesSnap.empty) {
+        console.error("No hay reactivos para descargar");
+        return;
+      }
+
+      const professorsMap = new Map();
+      const locationsMap = new Map();
+
+      try {
+        const profSnap = await getDocs(collection(db, "professors"));
+        profSnap.forEach((s) => {
+          const data = s.data();
+          const name = data.name ?? data.nombre ?? "";
+          professorsMap.set(s.id, String(name));
+        });
+      } catch (err) {}
+
+      try {
+        const locSnap = await getDocs(collection(db, "locations"));
+        locSnap.forEach((s) => {
+          const data = s.data();
+          const name = data.name ?? data.nombre ?? "";
+          locationsMap.set(s.id, String(name));
+        });
+      } catch (err) {}
+
+      const header = [
+        "nombre",
+        "docente",
+        "lugar",
+        "marca",
+        "clase",
+        "cantidadValor",
+        "cantidadUnidad",
+        "fechaDeVencimiento",
+        "Gabinete",
+        "codigo",
+        "hDes",
+      ];
+
+      const escape = (v) =>
+        `"${String(v ?? "")
+          .replace(/"/g, '""')
+          .replace(/\r?\n/g, " ")}"`;
+
+      const rows = [];
+      reactivesSnap.forEach((docSnap) => {
+        const d = docSnap.data();
+
+        let docente = "";
+        if (d.docenteId) {
+          docente = professorsMap.get(d.docenteId) ?? d.docenteId;
+        } else if (d.docente) {
+          docente = d.docente;
+        } else {
+          docente = "";
+        }
+
+        let lugar = "";
+        if (d.lugarId) {
+          lugar = locationsMap.get(d.lugarId) ?? d.lugarId;
+        } else if (d.lugar) {
+          lugar = d.lugar;
+        } else {
+          lugar = "";
+        }
+
+        const row = [
+          d.nombre ?? "",
+          docente,
+          lugar,
+          d.marca ?? "",
+          d.clase ?? "",
+          d.cantidadValor ?? "",
+          d.cantidadUnidad ?? "",
+          d.fechaDeVencimiento ?? "",
+          d.gabinete ?? "",
+          d.codigo ?? "",
+          d.hDes ?? "",
+        ];
+
+        rows.push(row.map(escape).join(","));
+      });
+
+      const csv =
+        header.map((h) => `"${h}"`).join(",") + "\n" + rows.join("\n");
+
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      const now = new Date().toISOString().replace(/[:.]/g, "-");
+      a.download = `reactivos-${now}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("Error al descargar CSV:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleImportBatch = async () => {
     if (!batchCsvText.trim()) {
       console.error("Carga un CSV o pega su contenido");
@@ -1285,6 +1392,17 @@ export default function DataTable() {
             />
           </div>
         </Modal>
+      )}
+      {user && (
+        <div style={{ display: "flex", gap: 8 }}>
+          <Button
+            type="primary"
+            icon={<PlusOutlined />}
+            onClick={handleDownloadCSV}
+          >
+            Descargar como CSV
+          </Button>
+        </div>
       )}
 
       {showPopupDelete && (
