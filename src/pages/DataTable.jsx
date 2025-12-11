@@ -26,6 +26,8 @@ import {
   addDoc,
   updateDoc,
   writeBatch,
+  where,
+  query as queryFirebase,
 } from "firebase/firestore";
 import dayjs from "dayjs";
 import { db } from "../firebase";
@@ -357,6 +359,42 @@ export default function DataTable() {
         return "";
       };
 
+      const csvCodes = rows
+        .map((r) => mapValue(r, ["codigo", "código"]))
+        .filter((c) => Boolean(c));
+
+      if (csvCodes.length > 0) {
+        const chunk = (arr, size) =>
+          arr.reduce((out, e, i) => {
+            if (i % size === 0) out.push([]);
+            out[out.length - 1].push(e);
+            return out;
+          }, []);
+
+        let foundInDB = [];
+
+        for (const group of chunk(csvCodes, 10)) {
+          const q = queryFirebase(
+            collection(db, "reactives"),
+            where("codigo", "in", group)
+          );
+          const snap = await getDocs(q);
+
+          snap.forEach((docSnap) => {
+            foundInDB.push(docSnap.get("codigo"));
+          });
+        }
+
+        if (foundInDB.length > 0) {
+          console.error(
+            "Los siguientes códigos ya existen en la base de datos:",
+            foundInDB.join(", ")
+          );
+          console.error("Importación cancelada.");
+          return;
+        }
+      }
+
       const batch = writeBatch(db);
       let count = 0;
       rows.forEach((r) => {
@@ -415,8 +453,8 @@ export default function DataTable() {
           lugarId: findLocationId(lugarRaw),
           marca: mapValue(r, ["marca"]),
           clase: mapValue(r, ["clase", "categoria", "categoría"]),
-          cantidadValor: cantidadValor,
-          cantidadUnidad: cantidadUnidad,
+          cantidadValor,
+          cantidadUnidad,
           cantidadAlmacenada: cantidadAlmacenadaRaw || "",
           fechaDeVencimiento: (() => {
             const fv = mapValue(r, [
