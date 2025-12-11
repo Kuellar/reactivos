@@ -359,10 +359,18 @@ export default function DataTable() {
         return "";
       };
 
+      const normalizeLugar = (raw) => {
+        if (!raw) return raw;
+        const cleaned = String(raw).trim().toUpperCase().replace(/\./g, "");
+        if (cleaned === "BOD") return "Bodega";
+        return raw;
+      };
+
       const csvCodes = rows
         .map((r) => mapValue(r, ["codigo", "código"]))
         .filter((c) => Boolean(c));
 
+      const existingCodesSet = new Set();
       if (csvCodes.length > 0) {
         const chunk = (arr, size) =>
           arr.reduce((out, e, i) => {
@@ -371,35 +379,44 @@ export default function DataTable() {
             return out;
           }, []);
 
-        let foundInDB = [];
-
         for (const group of chunk(csvCodes, 10)) {
           const q = queryFirebase(
             collection(db, "reactives"),
             where("codigo", "in", group)
           );
           const snap = await getDocs(q);
-
           snap.forEach((docSnap) => {
-            foundInDB.push(docSnap.get("codigo"));
+            const c = docSnap.get("codigo");
+            if (c) existingCodesSet.add(String(c));
           });
-        }
-
-        if (foundInDB.length > 0) {
-          console.error(
-            "Los siguientes códigos ya existen en la base de datos:",
-            foundInDB.join(", ")
-          );
-          console.error("Importación cancelada.");
-          return;
         }
       }
 
       const batch = writeBatch(db);
-      let count = 0;
+      let importedCount = 0;
+      const skippedBecauseExist = [];
+      const skippedBecauseDuplicateInCsv = [];
+      const seenCsvCodes = new Set();
+
       rows.forEach((r) => {
         const nombre = mapValue(r, ["nombre"]);
         if (!nombre) return;
+
+        const codigoRaw = mapValue(r, ["codigo", "código"]);
+        const codigo = codigoRaw ? String(codigoRaw).trim() : "";
+
+        if (codigo && existingCodesSet.has(codigo)) {
+          skippedBecauseExist.push(codigo);
+          return;
+        }
+
+        if (codigo) {
+          if (seenCsvCodes.has(codigo)) {
+            skippedBecauseDuplicateInCsv.push(codigo);
+            return;
+          }
+          seenCsvCodes.add(codigo);
+        }
 
         const docenteRaw = mapValue(r, [
           "docente",
@@ -415,6 +432,7 @@ export default function DataTable() {
           "ubicacion",
           "ubicación",
         ]);
+        const lugarParaBuscar = normalizeLugar(lugarRaw);
 
         let cantidadValor = null;
         let cantidadUnidad = "";
@@ -450,7 +468,7 @@ export default function DataTable() {
         const data = {
           nombre,
           docenteId: findProfessorId(docenteRaw),
-          lugarId: findLocationId(lugarRaw),
+          lugarId: findLocationId(lugarParaBuscar),
           marca: mapValue(r, ["marca"]),
           clase: mapValue(r, ["clase", "categoria", "categoría"]),
           cantidadValor,
@@ -467,7 +485,7 @@ export default function DataTable() {
             return d.isValid() ? d.format("YYYY-MM-DD") : fv;
           })(),
           gabinete: mapValue(r, ["gabinete"]),
-          codigo: mapValue(r, ["codigo", "código"]),
+          codigo: codigo, // ya normalizado arriba (puede ser "")
           hDes: mapValue(r, [
             "hdes",
             "hds",
@@ -479,16 +497,42 @@ export default function DataTable() {
 
         const ref = doc(collection(db, "reactives"));
         batch.set(ref, data);
-        count += 1;
+        importedCount += 1;
       });
 
-      if (!count) {
-        console.error("No se encontraron filas válidas para importar");
+      if (!importedCount) {
+        console.error(
+          "No se encontraron filas válidas para importar (o se saltaron todas por duplicados)"
+        );
+        if (skippedBecauseExist.length)
+          console.error(
+            "Saltados por existir en DB:",
+            skippedBecauseExist.join(", ")
+          );
+        if (skippedBecauseDuplicateInCsv.length)
+          console.error(
+            "Saltados por duplicado en CSV:",
+            skippedBecauseDuplicateInCsv.join(", ")
+          );
         return;
       }
 
       await batch.commit();
-      console.error(`Importación completada: ${count} reactivos`);
+
+      console.error(
+        `Importación completada: ${importedCount} reactivos importados.`
+      );
+      if (skippedBecauseExist.length)
+        console.error(
+          "Saltados por existir en DB:",
+          skippedBecauseExist.join(", ")
+        );
+      if (skippedBecauseDuplicateInCsv.length)
+        console.error(
+          "Saltados por duplicado en CSV:",
+          skippedBecauseDuplicateInCsv.join(", ")
+        );
+
       setShowBatchModal(false);
       fetchData();
     } catch (e) {
