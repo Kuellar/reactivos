@@ -372,8 +372,9 @@ export default function DataTable() {
         const profSnap = await getDocs(collection(db, "professors"));
         profSnap.forEach((s) => {
           const data = s.data();
-          const name = data.name ?? data.nombre ?? "";
-          professorsMap.set(s.id, String(name));
+          const firstName = data.firstName ?? data.nombre ?? "";
+          const lastName = data.lastName ?? data.apellido ?? "";
+          professorsMap.set(s.id, String(firstName) + " " + String(lastName));
         });
       } catch (err) {}
 
