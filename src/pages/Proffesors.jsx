@@ -172,13 +172,22 @@ export default function Professors() {
         />
       ),
     },
-    { title: "Nombres", dataIndex: "firstName", key: "firstName" },
+    {
+      title: "Nombres",
+      dataIndex: "firstName",
+      key: "firstName",
+      sorter: (a, b) => {
+        const nameA = `${a.firstName || ""} ${a.lastName || ""}`.toLowerCase();
+        const nameB = `${b.firstName || ""} ${b.lastName || ""}`.toLowerCase();
+        return nameA.localeCompare(nameB, "es", { sensitivity: "base" });
+      },
+      defaultSortOrder: "ascend",
+    },
     { title: "Apellidos", dataIndex: "lastName", key: "lastName" },
     { title: "Correo electrónico", dataIndex: "email", key: "email" },
     { title: "Posición", dataIndex: "position", key: "position" },
   ];
 
-  // solo añadimos la columna de acciones (editar/borrar) si hay usuario autenticado
   if (user) {
     columns.push({
       title: "Acciones",
