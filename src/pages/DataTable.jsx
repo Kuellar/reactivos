@@ -476,6 +476,31 @@ export default function DataTable() {
         return;
       }
 
+      const normalizeName = (v = "") =>
+        String(v)
+          .toLowerCase()
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .replace(/[^a-z\s]/g, "")
+          .replace(/\s+/g, " ")
+          .trim();
+
+      const scoreName = (input, target) => {
+        if (!input || !target) return 0;
+        if (input === target) return 100;
+        if (target.includes(input) || input.includes(target)) return 85;
+
+        const a = input.split(" ");
+        const b = target.split(" ");
+
+        let hits = 0;
+        for (const w of a) {
+          if (b.includes(w)) hits++;
+        }
+
+        return (hits / Math.max(a.length, b.length)) * 70;
+      };
+
       const mapValue = (row, keys) => {
         for (const k of keys) {
           const v = row[k];
@@ -491,12 +516,47 @@ export default function DataTable() {
         return raw;
       };
 
+      const profSnap = await getDocs(collection(db, "professors"));
+      const professorsIndex = profSnap.docs.map((s) => {
+        const d = s.data();
+        const first = String(d.firstName ?? d.nombre ?? "").trim();
+        const last = String(d.lastName ?? d.apellido ?? "").trim();
+        const full = `${first} ${last}`.trim();
+
+        return {
+          id: s.id,
+          first: normalizeName(first),
+          last: normalizeName(last),
+          full: normalizeName(full),
+        };
+      });
+
+      const findProfessorId = (raw) => {
+        if (!raw || !professorsIndex.length) return "";
+        const input = normalizeName(raw);
+        let bestId = "";
+        let bestScore = 0;
+        for (const p of professorsIndex) {
+          const score = Math.max(
+            scoreName(input, p.full),
+            scoreName(input, p.first),
+            scoreName(input, p.last)
+          );
+          if (score > bestScore) {
+            bestScore = score;
+            bestId = p.id;
+          }
+        }
+        return bestScore >= 40 ? bestId : "";
+      };
+
       const csvCodes = rows
         .map((r) => mapValue(r, ["codigo", "código"]))
-        .filter((c) => Boolean(c));
+        .filter(Boolean);
 
       const existingCodesSet = new Set();
-      if (csvCodes.length > 0) {
+
+      if (csvCodes.length) {
         const chunk = (arr, size) =>
           arr.reduce((out, e, i) => {
             if (i % size === 0) out.push([]);
@@ -510,8 +570,8 @@ export default function DataTable() {
             where("codigo", "in", group)
           );
           const snap = await getDocs(q);
-          snap.forEach((docSnap) => {
-            const c = docSnap.get("codigo");
+          snap.forEach((d) => {
+            const c = d.get("codigo");
             if (c) existingCodesSet.add(String(c));
           });
         }
@@ -610,7 +670,7 @@ export default function DataTable() {
             return d.isValid() ? d.format("YYYY-MM-DD") : fv;
           })(),
           gabinete: mapValue(r, ["gabinete"]),
-          codigo: codigo, // ya normalizado arriba (puede ser "")
+          codigo,
           hDes: mapValue(r, [
             "hdes",
             "hds",
@@ -626,43 +686,17 @@ export default function DataTable() {
       });
 
       if (!importedCount) {
-        console.error(
-          "No se encontraron filas válidas para importar (o se saltaron todas por duplicados)"
-        );
-        if (skippedBecauseExist.length)
-          console.error(
-            "Saltados por existir en DB:",
-            skippedBecauseExist.join(", ")
-          );
-        if (skippedBecauseDuplicateInCsv.length)
-          console.error(
-            "Saltados por duplicado en CSV:",
-            skippedBecauseDuplicateInCsv.join(", ")
-          );
+        console.error("No se importó ningún reactivo");
         return;
       }
 
       await batch.commit();
 
-      console.error(
-        `Importación completada: ${importedCount} reactivos importados.`
-      );
-      if (skippedBecauseExist.length)
-        console.error(
-          "Saltados por existir en DB:",
-          skippedBecauseExist.join(", ")
-        );
-      if (skippedBecauseDuplicateInCsv.length)
-        console.error(
-          "Saltados por duplicado en CSV:",
-          skippedBecauseDuplicateInCsv.join(", ")
-        );
-
+      console.error(`Importados ${importedCount} reactivos`);
       setShowBatchModal(false);
       fetchData();
     } catch (e) {
-      console.error(e);
-      console.error("Error durante la importación");
+      console.error("Error durante la importación", e);
     } finally {
       setBatchLoading(false);
     }
