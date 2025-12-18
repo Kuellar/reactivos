@@ -253,23 +253,6 @@ export default function DataTable() {
 
   const normalize = (s = "") => String(s).trim();
 
-  const toNumber = (v) => {
-    if (v === undefined || v === null || v === "") return 0;
-    const n = Number(String(v).replace(/,/g, "."));
-    return isNaN(n) ? 0 : n;
-  };
-
-  const findProfessorId = (value) => {
-    if (!value) return "";
-    const byId = professors.find((p) => p.id === value);
-    if (byId) return byId.id;
-    const v = value.toLowerCase();
-    const byName = professors.find(
-      (p) => `${p.firstName} ${p.lastName}`.toLowerCase() === v
-    );
-    return byName ? byName.id : "";
-  };
-
   const findLocationId = (value) => {
     if (!value) return "";
     const byId = locations.find((l) => l.id === value);
@@ -974,7 +957,7 @@ export default function DataTable() {
       cols.push({
         title: "Acciones",
         key: "acciones",
-        width: isM ? 120 : 140,
+        width: isSmall ? 80 : isM ? 120 : 140,
         render: (_, record) => (
           <div
             className="table-row-actions"
@@ -989,7 +972,7 @@ export default function DataTable() {
       });
     }
 
-    if (cols.length > 0) {
+    if (!isSmall && !isM && cols.length > 0) {
       const first = { ...cols[0] };
       first.width = first.width ?? 300;
       first.ellipsis = first.ellipsis ?? true;
