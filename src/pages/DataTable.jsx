@@ -235,7 +235,6 @@ export default function DataTable() {
           r.clase,
           r.gabinete,
           r.codigo,
-          r.hDes,
           profName,
           locName,
           formatQuantity(r),
