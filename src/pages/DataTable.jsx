@@ -468,6 +468,42 @@ export default function DataTable() {
           .replace(/\s+/g, " ")
           .trim();
 
+      const tokenize = (v = "") => normalizeName(v).split(" ").filter(Boolean);
+
+      const fuzzyTokenMatch = (a, b) => {
+        if (!a || !b) return false;
+        if (a === b) return true;
+        if (a.length < 3 || b.length < 3) return false;
+        return a.includes(b) || b.includes(a);
+      };
+
+      const buildComparableParts = (inputTokens, prof) => {
+        const firstNames = tokenize(prof.first);
+        const lastNames = tokenize(prof.last);
+        const len = inputTokens.length;
+
+        if (len === 2) {
+          return {
+            names: [firstNames[0]],
+            lastnames: [lastNames[0]],
+          };
+        }
+
+        if (len === 3) {
+          return {
+            names: [firstNames[0]],
+            lastnames: [lastNames[0], lastNames[1] ?? firstNames[1]].filter(
+              Boolean
+            ),
+          };
+        }
+
+        return {
+          names: firstNames,
+          lastnames: lastNames,
+        };
+      };
+
       const scoreName = (input, target) => {
         if (!input || !target) return 0;
         if (input === target) return 100;
@@ -516,21 +552,31 @@ export default function DataTable() {
 
       const findProfessorId = (raw) => {
         if (!raw || !professorsIndex.length) return "";
-        const input = normalizeName(raw);
+        const inputTokens = tokenize(raw);
+        if (inputTokens.length < 2) return "";
         let bestId = "";
         let bestScore = 0;
         for (const p of professorsIndex) {
-          const score = Math.max(
-            scoreName(input, p.full),
-            scoreName(input, p.first),
-            scoreName(input, p.last)
+          const { names, lastnames } = buildComparableParts(inputTokens, p);
+          const lastHit = lastnames.some((ln) =>
+            inputTokens.some((it) => fuzzyTokenMatch(it, ln))
           );
+          if (!lastHit) continue;
+          let score = 0;
+          for (const it of inputTokens) {
+            if (lastnames.some((ln) => fuzzyTokenMatch(it, ln))) {
+              score += 40;
+            } else if (names.some((n) => fuzzyTokenMatch(it, n))) {
+              score += 20;
+            }
+          }
+          score += scoreName(inputTokens.join(" "), p.full) * 0.3;
           if (score > bestScore) {
             bestScore = score;
             bestId = p.id;
           }
         }
-        return bestScore >= 40 ? bestId : "";
+        return bestScore >= 60 ? bestId : "";
       };
 
       const csvCodes = rows
