@@ -446,6 +446,42 @@ export default function DataTable() {
     }
   };
 
+  const detectDateFormat = (values) => {
+    let mdY = 0; // MM/DD/YYYY
+    let dmY = 0; // DD-MM-YYYY
+
+    for (const v of values) {
+      if (!v) continue;
+      const s = String(v).trim();
+
+      if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(s)) {
+        const [m, d] = s.split("/").map(Number);
+        if (m <= 12 && d <= 31) mdY++;
+      }
+
+      if (/^\d{2}-\d{2}-\d{4}$/.test(s)) {
+        const [d, m] = s.split("-").map(Number);
+        if (m <= 12 && d <= 31) dmY++;
+      }
+    }
+
+    if (mdY && !dmY) return "MDY";
+    if (dmY && !mdY) return "DMY";
+    return dmY >= mdY ? "DMY" : "MDY"; // Chile-safe fallback
+  };
+
+  const parseDateWithFormat = (raw, format) => {
+    if (!raw) return "";
+    const s = String(raw).trim();
+
+    const d =
+      format === "MDY"
+        ? dayjs(s, "M/D/YYYY", true)
+        : dayjs(s, "DD-MM-YYYY", true);
+
+    return d.isValid() ? d.format("YYYY-MM-DD") : s;
+  };
+
   const handleImportBatch = async () => {
     if (!batchCsvText.trim()) {
       console.error("Carga un CSV o pega su contenido");
@@ -612,6 +648,18 @@ export default function DataTable() {
       const skippedBecauseDuplicateInCsv = [];
       const seenCsvCodes = new Set();
 
+      const rawDates = rows
+        .map((r) =>
+          mapValue(r, [
+            "fechadevencimiento",
+            "vencimiento",
+            "fecha_vencimiento",
+          ])
+        )
+        .filter(Boolean);
+
+      const inferredDateFormat = detectDateFormat(rawDates);
+
       rows.forEach((r) => {
         const nombre = mapValue(r, ["nombre"]);
         if (!nombre) return;
@@ -694,9 +742,7 @@ export default function DataTable() {
               "vencimiento",
               "fecha_vencimiento",
             ]);
-            if (!fv) return "";
-            const d = dayjs(fv);
-            return d.isValid() ? d.format("YYYY-MM-DD") : fv;
+            return parseDateWithFormat(fv, inferredDateFormat);
           })(),
           gabinete: mapValue(r, ["gabinete"]),
           codigo,
