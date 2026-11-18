@@ -15,6 +15,7 @@ import {
 import { db } from "../firebase";
 import labPlaceholder from "../assets/images/lab-placeholder.svg";
 import bodegaPlaceholder from "../assets/images/bodega-placeholder.svg";
+import cytometerPlaceholder from "../assets/images/cytometer-placeholder.svg";
 import { useAuth } from "../context/AuthContext";
 import { Button, Empty, Form, Input, Modal, message, Skeleton, Tooltip } from "antd";
 import {
@@ -91,10 +92,16 @@ const normalizeName = (s) =>
     .trim()
     .toLowerCase();
 
-// Default image when a sala has no (working) image URL:
-// names starting with "Bodega" get the storeroom illustration, the rest the lab.
-const placeholderFor = (name) =>
-  /^bodega\b/.test(normalizeName(name)) ? bodegaPlaceholder : labPlaceholder;
+// Default image when a sala has no (working) image URL, chosen by name
+// (case/accents ignored). Anything not listed gets the biochemistry lab.
+const ROOM_PLACEHOLDERS = [
+  { match: /^bodega\b/, src: bodegaPlaceholder },
+  { match: /^243\b/, src: cytometerPlaceholder }, // sala con citómetro de flujo
+];
+const placeholderFor = (name) => {
+  const n = normalizeName(name);
+  return ROOM_PLACEHOLDERS.find((r) => r.match.test(n))?.src ?? labPlaceholder;
+};
 
 const byName = (a, b) =>
   (a.name ?? "").localeCompare(b.name ?? "", "es", {

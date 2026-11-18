@@ -46,8 +46,9 @@ src/
   pages/
     Home.jsx             landing: search box + grid of locations (salas) with a reactive
                          count per sala (getCountFromServer) + add/edit modal with image URL
-  assets/images/lab-placeholder.svg      default sala image (low-poly lab illustration)
-  assets/images/bodega-placeholder.svg   default image for salas named "Bodega…" (storeroom)
+  assets/images/lab-placeholder.svg        default sala image (low-poly biochemistry lab)
+  assets/images/bodega-placeholder.svg     default image for salas named "Bodega…" (storeroom)
+  assets/images/cytometer-placeholder.svg  default image for sala "243" (flow cytometer)
     DataTable.jsx        reactivos table: filter, CRUD, CSV import/export, delete-all (~1600 lines)
     Proffesors.jsx       docentes CRUD (file name typo is historical; route is /professors)
     Users.jsx            admin: create users, assign roles, disable, reset email
