@@ -104,6 +104,14 @@ The build works under any sub-path and needs no server rewrite rules, because Vi
 
 **Manual fallback:** `npm run deploy` builds locally and pushes to `gh-pages` (Pages only).
 
+**Manual server upload:** `npm run upload` (`tools/upload-sftp.sh`) builds and uploads
+`dist/` over SFTP from your own computer, using the OpenSSH `sftp` client. On the first run
+it asks for the server, user and folder and saves them in `sftp.config.local` (git-ignored
+by `*.local`). It asks for the password on every run and never stores it. Use
+`npm run upload -- --skip-build` to upload the existing `dist/`. This exists because the
+server refuses connections from GitHub's runners, so the CI `sftp` job cannot reach it
+(the CI log shows "Cannot connect to the server on port 22").
+
 **Security rules are never deployed by CI.** After editing `firestore.rules`, publish them:
 Firebase console → Firestore → Rules (paste), or
 `npx firebase-tools deploy --only firestore:rules --project <project-id>`.

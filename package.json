@@ -9,7 +9,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "predeploy": "npm run build",
-    "deploy": "gh-pages -d dist"
+    "deploy": "gh-pages -d dist",
+    "upload": "bash tools/upload-sftp.sh"
   },
   "dependencies": {
     "@ant-design/icons": "^6.1.0",

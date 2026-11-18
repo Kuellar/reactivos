@@ -93,71 +93,71 @@ jobs:
               commit -q -m "Deploy ${GITHUB_SHA::7}"
           git push -q --force "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" gh-pages
 
-  sftp:
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/download-artifact@v8
-        with:
-          name: dist
-          path: dist
+  # sftp:
+  #   needs: build
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/download-artifact@v8
+  #       with:
+  #         name: dist
+  #         path: dist
 
-      - name: Install lftp
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq lftp
+  #     - name: Install lftp
+  #       run: sudo apt-get update -qq && sudo apt-get install -y -qq lftp
 
-      - name: Upload dist/ over SFTP
-        env:
-          SFTP_HOST: ${{ secrets.SFTP_HOST }}
-          SFTP_PORT: ${{ secrets.SFTP_PORT }}
-          SFTP_USER: ${{ secrets.SFTP_USER }}
-          LFTP_PASSWORD: ${{ secrets.SFTP_PASSWORD }}
-          SFTP_REMOTE_DIR: ${{ secrets.SFTP_REMOTE_DIR }}
-          SFTP_KNOWN_HOSTS: ${{ secrets.SFTP_KNOWN_HOSTS }}
-        run: |
-          for v in SFTP_HOST SFTP_USER LFTP_PASSWORD SFTP_REMOTE_DIR; do
-            if [ -z "${!v}" ]; then echo "::error::Missing repository secret ${v/LFTP_PASSWORD/SFTP_PASSWORD}"; exit 1; fi
-          done
+  #     - name: Upload dist/ over SFTP
+  #       env:
+  #         SFTP_HOST: ${{ secrets.SFTP_HOST }}
+  #         SFTP_PORT: ${{ secrets.SFTP_PORT }}
+  #         SFTP_USER: ${{ secrets.SFTP_USER }}
+  #         LFTP_PASSWORD: ${{ secrets.SFTP_PASSWORD }}
+  #         SFTP_REMOTE_DIR: ${{ secrets.SFTP_REMOTE_DIR }}
+  #         SFTP_KNOWN_HOSTS: ${{ secrets.SFTP_KNOWN_HOSTS }}
+  #       run: |
+  #         for v in SFTP_HOST SFTP_USER LFTP_PASSWORD SFTP_REMOTE_DIR; do
+  #           if [ -z "${!v}" ]; then echo "::error::Missing repository secret ${v/LFTP_PASSWORD/SFTP_PASSWORD}"; exit 1; fi
+  #         done
 
-          # Accept "host", "host:port", "user@host", "sftp://host:port/anything".
-          host="${SFTP_HOST#*://}"; host="${host%%/*}"; host="${host##*@}"
-          if [[ "$host" == *:* ]]; then port="${host##*:}"; host="${host%:*}"; else port="${SFTP_PORT:-22}"; fi
-          echo "Connecting to SFTP_HOST on port $port"
+  #         # Accept "host", "host:port", "user@host", "sftp://host:port/anything".
+  #         host="${SFTP_HOST#*://}"; host="${host%%/*}"; host="${host##*@}"
+  #         if [[ "$host" == *:* ]]; then port="${host##*:}"; host="${host%:*}"; else port="${SFTP_PORT:-22}"; fi
+  #         echo "Connecting to SFTP_HOST on port $port"
 
-          # Reachability checks, so a failure says why (the host itself is masked as *** in logs).
-          if ! getent ahosts "$host" > /dev/null; then
-            echo "::error::Cannot resolve SFTP_HOST. It must be just the server name or IP (no path), e.g. myserver.com"
-            exit 1
-          fi
-          if ! timeout 10 bash -c "exec 3<>/dev/tcp/$host/$port" 2> /dev/null; then
-            echo "::error::Cannot connect to the server on port $port. Check the port FileZilla uses (set SFTP_PORT if it is not 22). If you need a VPN or the university network to connect from your PC, GitHub's runners cannot reach the server."
-            exit 1
-          fi
+  #         # Reachability checks, so a failure says why (the host itself is masked as *** in logs).
+  #         if ! getent ahosts "$host" > /dev/null; then
+  #           echo "::error::Cannot resolve SFTP_HOST. It must be just the server name or IP (no path), e.g. myserver.com"
+  #           exit 1
+  #         fi
+  #         if ! timeout 10 bash -c "exec 3<>/dev/tcp/$host/$port" 2> /dev/null; then
+  #           echo "::error::Cannot connect to the server on port $port. Check the port FileZilla uses (set SFTP_PORT if it is not 22). If you need a VPN or the university network to connect from your PC, GitHub's runners cannot reach the server."
+  #           exit 1
+  #         fi
 
-          # Server host key: pinned via secret if given, otherwise fetched now.
-          mkdir -p ~/.ssh && chmod 700 ~/.ssh
-          if [ -n "$SFTP_KNOWN_HOSTS" ]; then
-            printf '%s\n' "$SFTP_KNOWN_HOSTS" > ~/.ssh/known_hosts
-          else
-            ssh-keyscan -T 15 -p "$port" "$host" > ~/.ssh/known_hosts 2> /tmp/keyscan.log || true
-            if [ ! -s ~/.ssh/known_hosts ]; then
-              echo "::error::Port $port is open but did not answer as an SFTP (SSH) server. If FileZilla's protocol is FTP/FTPS (usually port 21), this is not SFTP."
-              cat /tmp/keyscan.log
-              exit 1
-            fi
-            echo "::notice::Host key fetched at runtime. Set SFTP_KNOWN_HOSTS to pin it."
-          fi
+  #         # Server host key: pinned via secret if given, otherwise fetched now.
+  #         mkdir -p ~/.ssh && chmod 700 ~/.ssh
+  #         if [ -n "$SFTP_KNOWN_HOSTS" ]; then
+  #           printf '%s\n' "$SFTP_KNOWN_HOSTS" > ~/.ssh/known_hosts
+  #         else
+  #           ssh-keyscan -T 15 -p "$port" "$host" > ~/.ssh/known_hosts 2> /tmp/keyscan.log || true
+  #           if [ ! -s ~/.ssh/known_hosts ]; then
+  #             echo "::error::Port $port is open but did not answer as an SFTP (SSH) server. If FileZilla's protocol is FTP/FTPS (usually port 21), this is not SFTP."
+  #             cat /tmp/keyscan.log
+  #             exit 1
+  #           fi
+  #           echo "::notice::Host key fetched at runtime. Set SFTP_KNOWN_HOSTS to pin it."
+  #         fi
 
-          # Password comes from $LFTP_PASSWORD (--env-password), never on the command line.
-          # Keep the lftp commands on ONE line: in a multi-line string lftp passes the
-          # quotes around the user literally to ssh, which rejects it.
-          # Add --delete to `mirror` to also remove remote files that are no longer in dist/
-          # (only if SFTP_REMOTE_DIR is a folder used exclusively by this app).
-          cmds=(
-            "set sftp:auto-confirm no"
-            "set net:timeout 20"
-            "set net:max-retries 2"
-            "set net:reconnect-interval-base 5"
-            "open --env-password -u \"$SFTP_USER\" -p $port sftp://$host"
-            "mirror --reverse --verbose --parallel=4 dist/ \"$SFTP_REMOTE_DIR\""
-          )
-          lftp -c "$(IFS=';'; echo "${cmds[*]}")"
+  #         # Password comes from $LFTP_PASSWORD (--env-password), never on the command line.
+  #         # Keep the lftp commands on ONE line: in a multi-line string lftp passes the
+  #         # quotes around the user literally to ssh, which rejects it.
+  #         # Add --delete to `mirror` to also remove remote files that are no longer in dist/
+  #         # (only if SFTP_REMOTE_DIR is a folder used exclusively by this app).
+  #         cmds=(
+  #           "set sftp:auto-confirm no"
+  #           "set net:timeout 20"
+  #           "set net:max-retries 2"
+  #           "set net:reconnect-interval-base 5"
+  #           "open --env-password -u \"$SFTP_USER\" -p $port sftp://$host"
+  #           "mirror --reverse --verbose --parallel=4 dist/ \"$SFTP_REMOTE_DIR\""
+  #         )
+  #         lftp -c "$(IFS=';'; echo "${cmds[*]}")"
