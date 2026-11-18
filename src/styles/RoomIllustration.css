@@ -1,0 +1,257 @@
+/* Default sala illustrations (src/components/RoomIllustration.jsx).
+   The SVGs are generated with named groups (class="ill-…"); at rest they show the
+   still picture, and while the card (or the modal preview) is hovered the groups
+   below are animated. Rest state = first keyframe, so nothing jumps on hover. */
+
+.room-ill {
+  display: block;
+  width: 100%;
+  height: 100%;
+  --ill-flow: 3.4s; /* cytometer: time for a cell to cross the whole stream */
+}
+
+.room-ill > svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  /* ---- biochemistry lab ------------------------------------------------ */
+  /* pipette: plunger pressed, a drop falls into the ELISA well */
+  :is(.room-card:hover, .room-card:focus-visible, .room-preview:hover) .ill-plunger {
+    animation: ill-plunger 1.6s ease-in-out infinite;
+  }
+
+  :is(.room-card:hover, .room-card:focus-visible, .room-preview:hover) .ill-drop {
+    animation: ill-drop 1.6s ease-in infinite;
+  }
+
+  /* antigen leaves and binds the antibody again */
+  :is(.room-card:hover, .room-card:focus-visible, .room-preview:hover) .ill-antigen {
+    animation: ill-bind 3.2s ease-in-out infinite;
+  }
+
+  :is(.room-card:hover, .room-card:focus-visible, .room-preview:hover) .ill-drift {
+    animation: ill-drift 6s ease-in-out infinite;
+  }
+
+  /* microscope lamp */
+  :is(.room-card:hover, .room-card:focus-visible, .room-preview:hover) .ill-glow {
+    animation: ill-glow 2s ease-in-out infinite;
+  }
+
+  /* ---- flow cytometer (sala 243) ---------------------------------------- */
+  /* cells flow down the stream; each starts from its resting place (--f) */
+  :is(.room-card:hover, .room-card:focus-visible, .room-preview:hover) .ill-cell {
+    animation: ill-flow linear infinite;
+    animation-duration: var(--ill-flow);
+    animation-delay: calc(var(--f) * var(--ill-flow) * -1);
+  }
+
+  /* laser glow + scattered light flash each time a cell crosses the beam */
+  :is(.room-card:hover, .room-card:focus-visible, .room-preview:hover) .ill-pulse {
+    animation: ill-pulse ease-out infinite;
+    animation-duration: calc(var(--ill-flow) / 5);
+  }
+
+  /* gate on the dot plot: "marching ants" */
+  :is(.room-card:hover, .room-card:focus-visible, .room-preview:hover) .ill-gate {
+    animation: ill-march 0.7s linear infinite;
+  }
+
+  :is(.room-card:hover, .room-card:focus-visible, .room-preview:hover) .ill-led {
+    animation: ill-blink 1.2s steps(1, end) infinite;
+    animation-delay: calc(var(--i) * -0.4s);
+  }
+
+  /* ---- bodega ------------------------------------------------------------- */
+  /* hanging lamp swings; its light flickers on */
+  :is(.room-card:hover, .room-card:focus-visible, .room-preview:hover) .ill-lamp {
+    animation: ill-swing 2.8s infinite;
+  }
+
+  :is(.room-card:hover, .room-card:focus-visible, .room-preview:hover) .ill-light {
+    animation: ill-flicker 0.9s linear forwards;
+  }
+}
+
+/* SVG lengths in px = user units of the 320×200 viewBox */
+@keyframes ill-plunger {
+  0%,
+  60%,
+  100% {
+    transform: none;
+  }
+
+  10%,
+  40% {
+    transform: translate(-0.42px, 1.96px); /* along the 12° pipette axis */
+  }
+}
+
+@keyframes ill-drop {
+  0% {
+    transform: none;
+    opacity: 1;
+  }
+
+  35% {
+    transform: translateY(8px);
+    opacity: 1;
+  }
+
+  45% {
+    transform: translateY(9px) scale(1.4, 0.4);
+    opacity: 0;
+  }
+
+  46% {
+    transform: scale(0.2);
+    opacity: 0;
+  }
+
+  85%,
+  100% {
+    transform: none;
+    opacity: 1;
+  }
+}
+
+@keyframes ill-bind {
+  0%,
+  92%,
+  100% {
+    transform: none;
+    opacity: 1;
+  }
+
+  35%,
+  50% {
+    transform: translate(7px, -7px) rotate(50deg);
+    opacity: 0.55;
+  }
+
+  78% {
+    transform: none;
+    opacity: 1;
+  }
+
+  85% {
+    transform: scale(1.25);
+  }
+}
+
+@keyframes ill-drift {
+  0%,
+  100% {
+    transform: none;
+  }
+
+  50% {
+    transform: translate(3px, -2px);
+  }
+}
+
+@keyframes ill-glow {
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.35;
+  }
+}
+
+@keyframes ill-flow {
+  0% {
+    transform: translateY(0);
+    opacity: 0;
+  }
+
+  8%,
+  92% {
+    opacity: 1;
+  }
+
+  100% {
+    transform: translateY(var(--travel));
+    opacity: 0;
+  }
+}
+
+@keyframes ill-pulse {
+  0% {
+    opacity: 1;
+  }
+
+  60%,
+  100% {
+    opacity: 0.25;
+  }
+}
+
+@keyframes ill-march {
+  to {
+    stroke-dashoffset: -3.5px; /* one dash + gap */
+  }
+}
+
+@keyframes ill-blink {
+  0% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.2;
+  }
+}
+
+/* pendulum: fast through the middle, slow at the ends */
+@keyframes ill-swing {
+  0% {
+    transform: rotate(0deg);
+    animation-timing-function: ease-out;
+  }
+
+  25% {
+    transform: rotate(4deg);
+    animation-timing-function: ease-in-out;
+  }
+
+  75% {
+    transform: rotate(-4deg);
+    animation-timing-function: ease-in;
+  }
+
+  100% {
+    transform: rotate(0deg);
+  }
+}
+
+@keyframes ill-flicker {
+  0% {
+    fill-opacity: 0.07;
+  }
+
+  10% {
+    fill-opacity: 0.22;
+  }
+
+  16% {
+    fill-opacity: 0.05;
+  }
+
+  26% {
+    fill-opacity: 0.2;
+  }
+
+  32% {
+    fill-opacity: 0.08;
+  }
+
+  100% {
+    fill-opacity: 0.18;
+  }
+}

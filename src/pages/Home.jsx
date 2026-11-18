@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import ButtonCard from "../components/ButtonCard";
+import RoomIllustration from "../components/RoomIllustration";
 import { useNavigate } from "react-router-dom";
 import {
   collection,
@@ -13,9 +14,6 @@ import {
   getCountFromServer,
 } from "firebase/firestore";
 import { db } from "../firebase";
-import labPlaceholder from "../assets/images/lab-placeholder.svg";
-import bodegaPlaceholder from "../assets/images/bodega-placeholder.svg";
-import cytometerPlaceholder from "../assets/images/cytometer-placeholder.svg";
 import { useAuth } from "../context/AuthContext";
 import { Button, Empty, Form, Input, Modal, message, Skeleton, Tooltip } from "antd";
 import {
@@ -83,24 +81,6 @@ const IMAGE_STATUS = {
   loading: "validating",
   ok: "success",
   error: "warning",
-};
-
-const normalizeName = (s) =>
-  (s ?? "")
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .trim()
-    .toLowerCase();
-
-// Default image when a sala has no (working) image URL, chosen by name
-// (case/accents ignored). Anything not listed gets the biochemistry lab.
-const ROOM_PLACEHOLDERS = [
-  { match: /^bodega\b/, src: bodegaPlaceholder },
-  { match: /^243\b/, src: cytometerPlaceholder }, // sala con citómetro de flujo
-];
-const placeholderFor = (name) => {
-  const n = normalizeName(name);
-  return ROOM_PLACEHOLDERS.find((r) => r.match.test(n))?.src ?? labPlaceholder;
 };
 
 const byName = (a, b) =>
@@ -245,9 +225,6 @@ export default function Home() {
     navigate(`/table?query=${encodeURIComponent(q)}`);
   };
 
-  const previewSrc =
-    imgStatus === "ok" ? newLocationImg.trim() : placeholderFor(newLocationName);
-
   return (
     <div className="home">
       <section className="home-hero">
@@ -332,7 +309,7 @@ export default function Home() {
                     : ""
                 }
                 img={loc.img}
-                fallback={placeholderFor(loc.name)}
+                fallback={<RoomIllustration name={loc.name} />}
                 onClick={() => navigate(`/table?location=${loc.id}`)}
               />
               {canEditLocations && (
@@ -394,7 +371,11 @@ export default function Home() {
           width={460}
         >
           <div className="room-preview">
-            <img src={previewSrc} alt="" />
+            {imgStatus === "ok" ? (
+              <img src={newLocationImg.trim()} alt="" />
+            ) : (
+              <RoomIllustration name={newLocationName} />
+            )}
             {imgStatus !== "ok" && (
               <span className="room-preview__tag">Ilustración por defecto</span>
             )}

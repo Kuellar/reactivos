@@ -42,6 +42,8 @@ src/
     AccountBanner.jsx    bootstrap-admin / pending / profile-error notices
     RequireAuth.jsx      route guard (signed in, optional `permission`)
     ButtonCard.jsx       room card used on Home (cover image w/ fallback, name, meta line)
+    RoomIllustration.jsx default sala picture, picked by name and rendered as inline SVG so
+                         styles/RoomIllustration.css can animate it while the card is hovered
     TableActions.jsx
   pages/
     Home.jsx             landing: search box + grid of locations (salas) with a reactive
@@ -49,6 +51,7 @@ src/
   assets/images/lab-placeholder.svg        default sala image (low-poly biochemistry lab)
   assets/images/bodega-placeholder.svg     default image for salas named "Bodega…" (storeroom)
   assets/images/cytometer-placeholder.svg  default image for sala "243" (flow cytometer)
+                         (generated SVGs; groups with class="ill-…" are the animated parts)
     DataTable.jsx        reactivos table: filter, CRUD, CSV import/export, delete-all (~1600 lines)
     Proffesors.jsx       docentes CRUD (file name typo is historical; route is /professors)
     Users.jsx            admin: create users, assign roles, disable, reset email

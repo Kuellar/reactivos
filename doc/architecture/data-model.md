@@ -40,7 +40,7 @@ they display as empty and get `""` the next time they are saved.
 | Field | Type | Notes |
 | --- | --- | --- |
 | `name` | string | Shown on Home cards. |
-| `img` | string | Image URL (`http(s)://` only), set in the Home add/edit modal, which previews it. `""` or a URL that fails to load → a default illustration chosen by name (`ROOM_PLACEHOLDERS` in `Home.jsx`, case/accents ignored): "Bodega…" → `bodega-placeholder.svg`, "243…" → `cytometer-placeholder.svg` (flow cytometer), anything else → `lab-placeholder.svg` (all in `src/assets/images/`). |
+| `img` | string | Image URL (`http(s)://` only), set in the Home add/edit modal, which previews it. `""` or a URL that fails to load → a default illustration chosen by name (`ROOM_ILLUSTRATIONS` in `src/components/RoomIllustration.jsx`, case/accents ignored; it plays a small animation on hover): "Bodega…" → `bodega-placeholder.svg`, "243…" → `cytometer-placeholder.svg` (flow cytometer), anything else → `lab-placeholder.svg` (all in `src/assets/images/`). |
 
 ## `professors/{autoId}` — staff in charge (docentes)
 

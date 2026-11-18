@@ -2,23 +2,21 @@ import React, { useState } from "react";
 import { RightOutlined } from "@ant-design/icons";
 
 // Clickable room card for Home: cover image on top, name + meta line below.
-// If `img` is empty or fails to load, `fallback` is shown instead.
+// If `img` is empty or fails to load, `fallback` (a node, e.g. <RoomIllustration>)
+// is shown instead.
 export default function ButtonCard({ title, meta, img, fallback, onClick }) {
   // Remember which URL failed, so a new URL gets a fresh try without resetting state.
   const [failedSrc, setFailedSrc] = useState(null);
-  const src = img && img !== failedSrc ? img : fallback;
+  const showImg = Boolean(img) && img !== failedSrc;
 
   return (
     <button type="button" className="room-card" onClick={onClick}>
       <span className="room-card__media">
-        <img
-          src={src}
-          alt=""
-          loading="lazy"
-          onError={() => {
-            if (src !== fallback) setFailedSrc(src);
-          }}
-        />
+        {showImg ? (
+          <img src={img} alt="" loading="lazy" onError={() => setFailedSrc(img)} />
+        ) : (
+          fallback
+        )}
       </span>
       <span className="room-card__body">
         <span className="room-card__text">
