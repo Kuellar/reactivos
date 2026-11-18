@@ -12,11 +12,13 @@ import {
   Collapse,
   Grid,
   Space,
+  Tooltip,
 } from "antd";
 import {
   PlusOutlined,
   CloseCircleOutlined,
   FilePdfOutlined,
+  WarningFilled,
 } from "@ant-design/icons";
 import {
   collection,
@@ -38,6 +40,29 @@ import { useLocation, useNavigate } from "react-router-dom";
 const { Panel } = Collapse;
 const MD = 768;
 const M = 1200;
+
+// Safety data sheets (HdeS) older than this are flagged with a warning icon.
+const HOJA_MAX_YEARS = 3;
+const isHojaAntigua = (fechaHoja) => {
+  if (!fechaHoja) return false;
+  const d = dayjs(fechaHoja);
+  return (
+    d.isValid() && d.isBefore(dayjs().subtract(HOJA_MAX_YEARS, "year"), "day")
+  );
+};
+
+// "6.1" or "6.1 (8)" when a secondary class exists.
+const formatClase = (record) =>
+  [
+    record?.clase || "",
+    record?.claseSecundaria ? `(${record.claseSecundaria})` : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+const dateSorter = (field) => (a, b) =>
+  (a[field] ? dayjs(a[field]).valueOf() : Number.NEGATIVE_INFINITY) -
+  (b[field] ? dayjs(b[field]).valueOf() : Number.NEGATIVE_INFINITY);
 
 export default function DataTable() {
   const [data, setData] = useState([]);
@@ -236,6 +261,8 @@ export default function DataTable() {
           r.nombre,
           r.marca,
           r.clase,
+          r.claseSecundaria,
+          r.numeroNU,
           r.gabinete,
           r.codigo,
           profName,
@@ -379,12 +406,15 @@ export default function DataTable() {
         "lugar",
         "marca",
         "clase",
+        "claseSecundaria",
+        "numeroNU",
         "cantidadValor",
         "cantidadUnidad",
         "fechaDeVencimiento",
         "Gabinete",
         "codigo",
         "hDes",
+        "fechaHoja",
       ];
 
       const escape = (v) =>
@@ -420,12 +450,15 @@ export default function DataTable() {
           lugar,
           d.marca ?? "",
           d.clase ?? "",
+          d.claseSecundaria ?? "",
+          d.numeroNU ?? "",
           d.cantidadValor ?? "",
           d.cantidadUnidad ?? "",
           d.fechaDeVencimiento ?? "",
           d.gabinete ?? "",
           d.codigo ?? "",
           d.hDes ?? "",
+          d.fechaHoja ?? "",
         ];
 
         rows.push(row.map(escape).join(","));
@@ -651,14 +684,17 @@ export default function DataTable() {
       const skippedBecauseDuplicateInCsv = [];
       const seenCsvCodes = new Set();
 
+      const FECHA_HOJA_KEYS = ["fechahoja", "fecha_hoja", "fecha hoja"];
+
       const rawDates = rows
-        .map((r) =>
+        .flatMap((r) => [
           mapValue(r, [
             "fechadevencimiento",
             "vencimiento",
             "fecha_vencimiento",
-          ])
-        )
+          ]),
+          mapValue(r, FECHA_HOJA_KEYS),
+        ])
         .filter(Boolean);
 
       const inferredDateFormat = detectDateFormat(rawDates);
@@ -736,6 +772,19 @@ export default function DataTable() {
           lugarId: findLocationId(lugarParaBuscar),
           marca: mapValue(r, ["marca"]),
           clase: mapValue(r, ["clase", "categoria", "categoría"]),
+          claseSecundaria: mapValue(r, [
+            "clasesecundaria",
+            "clase_secundaria",
+            "clase secundaria",
+          ]),
+          numeroNU: mapValue(r, [
+            "numeronu",
+            "numero_nu",
+            "nº nu",
+            "n° nu",
+            "nro nu",
+            "nu",
+          ]),
           cantidadValor,
           cantidadUnidad,
           cantidadAlmacenada: cantidadAlmacenadaRaw || "",
@@ -756,6 +805,10 @@ export default function DataTable() {
             "linkhdes",
             "urlhdes",
           ]),
+          fechaHoja: parseDateWithFormat(
+            mapValue(r, FECHA_HOJA_KEYS),
+            inferredDateFormat
+          ),
         };
 
         const ref = doc(collection(db, "reactives"));
@@ -845,6 +898,8 @@ export default function DataTable() {
       lugarId: record.lugarId || "",
       marca: record.marca || "",
       clase: record.clase || "",
+      claseSecundaria: record.claseSecundaria || "",
+      numeroNU: record.numeroNU || "",
       cantidadValor: initialValor != null ? initialValor : undefined,
       cantidadUnidad: initialUnidad || undefined,
       fechaDeVencimiento: record.fechaDeVencimiento
@@ -853,6 +908,7 @@ export default function DataTable() {
       gabinete: record.gabinete || "",
       codigo: record.codigo || "",
       hDes: record.hDes || "",
+      fechaHoja: record.fechaHoja ? dayjs(record.fechaHoja) : null,
     });
     setShowPopup(true);
   };
@@ -874,6 +930,8 @@ export default function DataTable() {
       lugarId: values.lugarId || "",
       marca: values.marca || "",
       clase: values.clase || "",
+      claseSecundaria: values.claseSecundaria || "",
+      numeroNU: values.numeroNU || "",
       cantidadValor: cantidadValor,
       cantidadUnidad: cantidadUnidad,
       cantidadAlmacenada: "",
@@ -883,6 +941,7 @@ export default function DataTable() {
       gabinete: values.gabinete || "",
       codigo: values.codigo || "",
       hDes: values.hDes || "",
+      fechaHoja: values.fechaHoja ? values.fechaHoja.format("YYYY-MM-DD") : "",
     };
 
     try {
@@ -922,7 +981,14 @@ export default function DataTable() {
         title: "Clase",
         dataIndex: "clase",
         key: "clase",
-        sorter: (a, b) => naturalCompare(a.clase, b.clase),
+        render: (_, record) => formatClase(record),
+        sorter: (a, b) => naturalCompare(formatClase(a), formatClase(b)),
+      },
+      {
+        title: "Nº NU",
+        dataIndex: "numeroNU",
+        key: "numeroNU",
+        sorter: (a, b) => naturalCompare(a.numeroNU, b.numeroNU),
       },
       {
         title: "Cantidad almacenada",
@@ -935,13 +1001,7 @@ export default function DataTable() {
         dataIndex: "fechaDeVencimiento",
         key: "fechaDeVencimiento",
         render: (val) => (val ? dayjs(val).format("YYYY-MM-DD") : ""),
-        sorter: (a, b) =>
-          (a.fechaDeVencimiento
-            ? dayjs(a.fechaDeVencimiento).valueOf()
-            : Number.NEGATIVE_INFINITY) -
-          (b.fechaDeVencimiento
-            ? dayjs(b.fechaDeVencimiento).valueOf()
-            : Number.NEGATIVE_INFINITY),
+        sorter: dateSorter("fechaDeVencimiento"),
       },
       {
         title: "Docente encargado",
@@ -1002,6 +1062,13 @@ export default function DataTable() {
             </a>
           ) : null,
       },
+      {
+        title: "Fecha Hoja",
+        dataIndex: "fechaHoja",
+        key: "fechaHoja",
+        render: (val) => (val ? dayjs(val).format("YYYY-MM-DD") : ""),
+        sorter: dateSorter("fechaHoja"),
+      },
     ],
     [professors, locations]
   );
@@ -1052,16 +1119,29 @@ export default function DataTable() {
       cols.push({
         title: "Acciones",
         key: "acciones",
-        width: isSmall ? 80 : isM ? 120 : 140,
+        width: isSmall ? 110 : isM ? 130 : 150,
         render: (_, record) => (
           <div
             className="table-row-actions"
             onClick={(e) => e.stopPropagation()}
+            style={{ display: "flex", alignItems: "center", gap: 16 }}
           >
             <TableActions
               onEdit={() => handleEdit(record)}
               onDelete={() => openDelete(record)}
             />
+            {isHojaAntigua(record.fechaHoja) && (
+              <Tooltip
+                title={`La hoja de seguridad tiene más de ${HOJA_MAX_YEARS} años (${dayjs(
+                  record.fechaHoja
+                ).format("YYYY-MM-DD")})`}
+              >
+                <WarningFilled
+                  style={{ color: "#faad14", fontSize: 16 }}
+                  aria-label="Hoja de seguridad antigua"
+                />
+              </Tooltip>
+            )}
           </div>
         ),
       });
@@ -1122,7 +1202,10 @@ export default function DataTable() {
               <strong>Marca:</strong> {record.marca || ""}
             </div>
             <div>
-              <strong>Clase:</strong> {record.clase || ""}
+              <strong>Clase:</strong> {formatClase(record)}
+            </div>
+            <div>
+              <strong>Nº NU:</strong> {record.numeroNU || ""}
             </div>
             <div>
               <strong>Cantidad almacenada:</strong> {formatQuantity(record)}
@@ -1147,6 +1230,12 @@ export default function DataTable() {
               ) : (
                 "—"
               )}
+            </div>
+            <div>
+              <strong>Fecha Hoja:</strong>{" "}
+              {record.fechaHoja
+                ? dayjs(record.fechaHoja).format("YYYY-MM-DD")
+                : ""}
             </div>
 
             {canWrite && (
@@ -1410,6 +1499,14 @@ export default function DataTable() {
                 <Input placeholder="Clase" />
               </Form.Item>
 
+              <Form.Item label="Clase secundaria" name="claseSecundaria">
+                <Input placeholder="Clase secundaria (opcional)" />
+              </Form.Item>
+
+              <Form.Item label="Nº NU" name="numeroNU">
+                <Input placeholder="Nº NU (opcional)" />
+              </Form.Item>
+
               <Form.Item label="Cantidad almacenada">
                 <div style={{ display: "flex", gap: 8 }}>
                   <Form.Item
@@ -1471,6 +1568,14 @@ export default function DataTable() {
 
               <Form.Item label="HdeS" name="hDes">
                 <Input placeholder="Hoja de seguridad / HdeS" />
+              </Form.Item>
+
+              <Form.Item
+                label="Fecha Hoja"
+                name="fechaHoja"
+                extra={`Fecha de creación de la hoja de seguridad. Se mostrará una advertencia si tiene más de ${HOJA_MAX_YEARS} años.`}
+              >
+                <DatePicker style={{ width: "100%" }} format="YYYY-MM-DD" />
               </Form.Item>
 
               <div
@@ -1536,7 +1641,7 @@ export default function DataTable() {
                   wordBreak: "break-word",
                 }}
               >
-                nombre,docente,lugar,marca,clase,cantidadAlmacenada,fechaDeVencimiento,gabinete,codigo,hDes
+                nombre,docente,lugar,marca,clase,claseSecundaria,numeroNU,cantidadAlmacenada,fechaDeVencimiento,gabinete,codigo,hDes,fechaHoja
               </code>
             </p>
 
@@ -1546,8 +1651,8 @@ export default function DataTable() {
               onChange={(e) => setBatchCsvText(e.target.value)}
               placeholder={
                 "Ejemplos:\n" +
-                "nombre,docente,lugar,marca,clase,cantidadValor,cantidadUnidad,fechaDeVencimiento,gabinete,codigo,hDes\n" +
-                '"Ácido acético","",204,"Merck","3",1.25,"L","2029-07-31","B","205-3-A-13","https://ejemplo.com/hds.pdf"\n\n'
+                "nombre,docente,lugar,marca,clase,claseSecundaria,numeroNU,cantidadValor,cantidadUnidad,fechaDeVencimiento,gabinete,codigo,hDes,fechaHoja\n" +
+                '"Ácido acético","",204,"Merck","3","8","2789",1.25,"L","2029-07-31","B","205-3-A-13","https://ejemplo.com/hds.pdf","2024-03-15"\n\n'
               }
               style={{
                 width: "100%",

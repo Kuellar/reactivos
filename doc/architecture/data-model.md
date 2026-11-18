@@ -11,6 +11,8 @@ Read access for inventory data is public; writes are role-gated (see
 | `nombre` | string | Name. |
 | `marca` | string | Brand. |
 | `clase` | string | Hazard class (e.g. `"6.1"`). |
+| `claseSecundaria` | string | Optional secondary hazard class. The table shows it next to the primary class as `6.1 (8)`. Missing/`""` → only `clase` is shown. |
+| `numeroNU` | string | Optional "Nº NU" (UN number). Free text for now, no validation. |
 | `cantidadValor` | number \| null | Quantity value. |
 | `cantidadUnidad` | `"L"`\|`"mL"`\|`"g"`\|`"Kg"`\|`""` | Quantity unit. |
 | `cantidadAlmacenada` | string | Legacy free-text quantity; used only if value/unit missing. |
@@ -18,12 +20,15 @@ Read access for inventory data is public; writes are role-gated (see
 | `gabinete` | string | Cabinet. |
 | `codigo` | string | Internal code, e.g. `BOD-6.1-A-4`. |
 | `hDes` | string (URL) | Link to the safety data sheet (Hoja de Seguridad), usually Google Drive. |
+| `fechaHoja` | string `YYYY-MM-DD` \| `""` | Date the HdeS sheet was issued ("Fecha Hoja"). If it is more than 3 years old (`HOJA_MAX_YEARS` in `DataTable.jsx`), a yellow warning triangle appears next to the row's action buttons (editors/admins only, because only they see the actions column). |
 | `docenteId` | string | → `professors/{id}`; `""` if none. |
 | `lugarId` | string | → `locations/{id}`; `""` if none. |
 
 CSV import (DataTable "Agregar tabla") maps headers like
-`nombre, docente, lugar, marca, clase, cantidadValor, cantidadUnidad, fechaDeVencimiento, gabinete, codigo, hDes`
-(see `data_example.csv`); `docente`/`lugar` are resolved by name to IDs.
+`nombre, docente, lugar, marca, clase, claseSecundaria, numeroNU, cantidadValor, cantidadUnidad, fechaDeVencimiento, gabinete, codigo, hDes, fechaHoja`
+(see `data_example.csv`; the new columns are optional); `docente`/`lugar` are resolved by name to IDs.
+The CSV download writes the same columns. Older docs have no `claseSecundaria`/`numeroNU`/`fechaHoja`;
+they display as empty and get `""` the next time they are saved.
 
 ## `locations/{autoId}` — rooms (salas)
 

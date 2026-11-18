@@ -24,6 +24,7 @@ import {
   KeyOutlined,
   DeleteOutlined,
   CheckOutlined,
+  PushpinFilled,
 } from "@ant-design/icons";
 import { collection, onSnapshot } from "firebase/firestore";
 import { db } from "../firebase";
@@ -59,6 +60,55 @@ const roleOptions = ASSIGNABLE_ROLES.map((r) => ({
 
 const formatDate = (ts) => (ts?.toDate ? ts.toDate().toLocaleDateString("es-CL") : "—");
 
+// Speech-bubble reminder shown at the bottom of the page, admins only.
+function AdminReminder() {
+  return (
+    <div style={{ display: "flex", marginTop: 8, marginBottom: 12 }}>
+      <div
+        role="note"
+        style={{
+          position: "relative",
+          maxWidth: "100%",
+          background: "#fffbe6",
+          border: "1px solid #ffe58f",
+          borderRadius: 16,
+          padding: "10px 16px",
+          boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+            fontWeight: 600,
+            color: "#ad6800",
+            marginBottom: 4,
+          }}
+        >
+          <PushpinFilled /> Recordatorio
+        </div>
+        <div style={{ wordBreak: "break-word" }}>reactivosfarmacia@gmail.com - FarmaUdeC</div>
+        {/* bubble tail */}
+        <span
+          aria-hidden
+          style={{
+            position: "absolute",
+            bottom: -7,
+            left: 28,
+            width: 12,
+            height: 12,
+            background: "#fffbe6",
+            borderRight: "1px solid #ffe58f",
+            borderBottom: "1px solid #ffe58f",
+            transform: "rotate(45deg)",
+          }}
+        />
+      </div>
+    </div>
+  );
+}
+
 function PermissionMatrix() {
   const roles = ["admin", "editor", "viewer", "pending"];
   const rows = Object.keys(PERMISSIONS).map((p) => ({ key: p, label: PERMISSION_LABELS[p] ?? p }));
@@ -85,7 +135,7 @@ function PermissionMatrix() {
 }
 
 export default function Users() {
-  const { user: me } = useAuth();
+  const { user: me, can } = useAuth();
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [createOpen, setCreateOpen] = useState(false);
@@ -289,6 +339,8 @@ export default function Users() {
         pagination={{ pageSize: 10 }}
         scroll={{ x: 800 }}
       />
+
+      {can("users.manage") && <AdminReminder />}
 
       <Modal
         title="Crear usuario"

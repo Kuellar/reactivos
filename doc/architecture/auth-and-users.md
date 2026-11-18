@@ -60,7 +60,7 @@ Rules whitelist exactly these keys (`profileKeysOnly()`); adding a field = updat
 | `src/routes/AppRouter.jsx` | Redirects every route to `/change-password` while `profile.mustChangePassword`. Wraps `/users` in `RequireAuth permission="users.manage"`. |
 | `src/components/RequireAuth.jsx` | Route guard: spinner while loading → `/login` if anonymous → 403 if missing permission. |
 | `src/components/AccountBanner.jsx` | Shows "Ser administrador" (bootstrap), "pendiente de aprobación", or profile-load errors. |
-| `src/pages/Users.jsx` | Admin UI: table, inline role change, disable/enable, reset email, delete profile, create-user modal + welcome-message modal, permission matrix. |
+| `src/pages/Users.jsx` | Admin UI: table, inline role change, disable/enable, reset email, delete profile, create-user modal + welcome-message modal, permission matrix, "Recordatorio" note at the bottom (`can("users.manage")`; the text is hard-coded, so it is also in the public JS bundle). |
 | `src/pages/ChangePassword.jsx` | Re-authenticates with current/temporary password, sets new one, clears `mustChangePassword`. |
 | `src/pages/Login.jsx` | Login + "¿Olvidaste tu contraseña?" (`sendPasswordResetEmail`). No self sign-up. |
 | `firestore.rules` | Server enforcement (see below). |
