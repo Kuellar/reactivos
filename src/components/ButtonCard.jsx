@@ -1,36 +1,34 @@
-import React from "react";
-import { Button } from "antd";
-import { EditOutlined } from "@ant-design/icons";
+import React, { useState } from "react";
+import { RightOutlined } from "@ant-design/icons";
 
-export default function ButtonCard({ title, img, onClick, onEdit }) {
+// Clickable room card for Home: cover image on top, name + meta line below.
+// If `img` is empty or fails to load, `fallback` is shown instead.
+export default function ButtonCard({ title, meta, img, fallback, onClick }) {
+  // Remember which URL failed, so a new URL gets a fresh try without resetting state.
+  const [failedSrc, setFailedSrc] = useState(null);
+  const src = img && img !== failedSrc ? img : fallback;
+
   return (
-    <div
-      className="home-card"
-      onClick={onClick}
-      role="button"
-      style={{ position: "relative" }}
-    >
-      <img src={img} alt={title} />
-      <div style={{ fontWeight: 600 }}>{title}</div>
-      {onEdit && (
-        <Button
-          type="text"
-          icon={<EditOutlined />}
-          onClick={(e) => {
-            e.stopPropagation();
-            onEdit();
-          }}
-          style={{
-            position: "absolute",
-            right: 8,
-            bottom: 8,
-            background: "rgba(255,255,255,0.9)",
-            borderRadius: 8,
-            padding: "4px 6px",
-            boxShadow: "0 1px 3px rgba(0,0,0,0.12)",
+    <button type="button" className="room-card" onClick={onClick}>
+      <span className="room-card__media">
+        <img
+          src={src}
+          alt=""
+          loading="lazy"
+          onError={() => {
+            if (src !== fallback) setFailedSrc(src);
           }}
         />
-      )}
-    </div>
+      </span>
+      <span className="room-card__body">
+        <span className="room-card__text">
+          <span className="room-card__name" title={title}>
+            {title}
+          </span>
+          <span className="room-card__meta">{meta}</span>
+        </span>
+        <RightOutlined className="room-card__arrow" />
+      </span>
+    </button>
   );
 }

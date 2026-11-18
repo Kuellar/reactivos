@@ -50,8 +50,12 @@
   color: #fff;
   font-weight: 400;
   font-size: 12px;
-  line-height: 1.1;
-  opacity: 0.95;
+  line-height: 1.25;
+  opacity: 0.9;
+}
+
+.app-header-title + .app-header-subtitle {
+  margin-top: 4px;
 }
 
 /* right area */

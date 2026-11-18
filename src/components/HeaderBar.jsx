@@ -66,8 +66,9 @@ export default function HeaderBar() {
               <div className="app-header-title">
                 Registro de sustancias peligrosas
               </div>
+              <div className="app-header-subtitle">Facultad de farmacia</div>
               <div className="app-header-subtitle">
-                Facultad de farmacia depto. bioquímica clínica e inmunología
+                depto. bioquímica clínica e inmunología
               </div>
             </div>
           </Link>

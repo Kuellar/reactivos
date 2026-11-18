@@ -35,7 +35,7 @@ they display as empty and get `""` the next time they are saved.
 | Field | Type | Notes |
 | --- | --- | --- |
 | `name` | string | Shown on Home cards. |
-| `img` | string | Image URL; `""` → placeholder. |
+| `img` | string | Image URL (`http(s)://` only), set in the Home add/edit modal, which previews it. `""` or a URL that fails to load → a default illustration: `bodega-placeholder.svg` if the name starts with "Bodega" (case/accents ignored), else `lab-placeholder.svg` (both in `src/assets/images/`). |
 
 ## `professors/{autoId}` — staff in charge (docentes)
 

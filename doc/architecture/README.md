@@ -41,9 +41,13 @@ src/
     HeaderBar.jsx        top bar, user menu (role tag, Usuarios, Cambiar contraseña, logout)
     AccountBanner.jsx    bootstrap-admin / pending / profile-error notices
     RequireAuth.jsx      route guard (signed in, optional `permission`)
-    ButtonCard.jsx, TableActions.jsx
+    ButtonCard.jsx       room card used on Home (cover image w/ fallback, name, meta line)
+    TableActions.jsx
   pages/
-    Home.jsx             grid of locations (salas) + search box
+    Home.jsx             landing: search box + grid of locations (salas) with a reactive
+                         count per sala (getCountFromServer) + add/edit modal with image URL
+  assets/images/lab-placeholder.svg      default sala image (low-poly lab illustration)
+  assets/images/bodega-placeholder.svg   default image for salas named "Bodega…" (storeroom)
     DataTable.jsx        reactivos table: filter, CRUD, CSV import/export, delete-all (~1600 lines)
     Proffesors.jsx       docentes CRUD (file name typo is historical; route is /professors)
     Users.jsx            admin: create users, assign roles, disable, reset email
