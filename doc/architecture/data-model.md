@@ -27,7 +27,12 @@ Read access for inventory data is public; writes are role-gated (see
 CSV import (DataTable "Agregar tabla") maps headers like
 `nombre, docente, lugar, marca, clase, claseSecundaria, numeroNU, cantidadValor, cantidadUnidad, fechaDeVencimiento, gabinete, codigo, hDes, fechaHoja`
 (see `data_example.csv`; the new columns are optional); `docente`/`lugar` are resolved by name to IDs.
-The CSV download writes the same columns. Older docs have no `claseSecundaria`/`numeroNU`/`fechaHoja`;
+A loaded `.csv` file is decoded as UTF-8, falling back to Windows-1252 when it is not valid
+UTF-8 (Excel's default "CSV" on Windows); older imports read everything as UTF-8, which
+stored `�` (U+FFFD) in place of `´ ’ á ñ …`. For editors, DataTable shows a warning banner
+(`src/components/ReplacementCharFix.jsx`) when any reactivo still contains `�`, with a
+reviewed one-click fix that replaces each `�` with `′` (prime); it hides itself when none are left.
+The CSV download writes the same columns, with a UTF-8 BOM so Excel shows accents correctly. Older docs have no `claseSecundaria`/`numeroNU`/`fechaHoja`;
 they display as empty and get `""` the next time they are saved.
 
 ## `locations/{autoId}` — rooms (salas)

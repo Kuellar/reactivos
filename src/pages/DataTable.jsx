@@ -35,6 +35,7 @@ import dayjs from "dayjs";
 import { db } from "../firebase";
 import TableActions from "../components/TableActions";
 import ModalCloseButton from "../components/ModalCloseButton";
+import ReplacementCharFix from "../components/ReplacementCharFix";
 import { useAuth } from "../context/AuthContext";
 import { useLocation, useNavigate } from "react-router-dom";
 
@@ -60,6 +61,19 @@ const formatClase = (record) =>
   ]
     .filter(Boolean)
     .join(" ");
+
+// Excel on Windows saves "CSV" as Windows-1252, not UTF-8. Reading that file as
+// UTF-8 turns ´ ’ á ñ … into "�" (and the original character is lost), so try
+// strict UTF-8 first and fall back to Windows-1252.
+const decodeCsvBytes = (buffer) => {
+  let text;
+  try {
+    text = new TextDecoder("utf-8", { fatal: true }).decode(buffer);
+  } catch {
+    text = new TextDecoder("windows-1252").decode(buffer);
+  }
+  return text.replace(/^\uFEFF/, "");
+};
 
 const dateSorter = (field) => (a, b) =>
   (a[field] ? dayjs(a[field]).valueOf() : Number.NEGATIVE_INFINITY) -
@@ -358,15 +372,15 @@ export default function DataTable() {
     setShowBatchModal(true);
   };
 
-  const handleBatchFile = (e) => {
+  const handleBatchFile = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      const content = String(ev.target?.result || "");
-      setBatchCsvText(content);
-    };
-    reader.readAsText(file);
+    try {
+      setBatchCsvText(decodeCsvBytes(await file.arrayBuffer()));
+    } catch (err) {
+      console.error("Error leyendo CSV:", err);
+      message.error("No se pudo leer el archivo");
+    }
   };
 
   const handleDownloadCSV = async () => {
@@ -468,7 +482,8 @@ export default function DataTable() {
       const csv =
         header.map((h) => `"${h}"`).join(",") + "\n" + rows.join("\n");
 
-      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      // Leading BOM so Excel opens the file as UTF-8 (otherwise á shows as "Ã¡").
+      const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -1385,6 +1400,8 @@ export default function DataTable() {
           </div>
         )}
       </div>
+
+      {canWrite && <ReplacementCharFix items={data} onFixed={fetchData} />}
 
       <div className="reactives-table-wrapper">
         <Table
