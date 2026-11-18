@@ -36,4 +36,6 @@ Non-negotiables:
 - React 19 + Vite + antd 5, plain JS, Firebase Auth + Firestore, no backend.
 - `HashRouter` (GitHub Pages). User-facing text is in Spanish.
 - Data model: [`doc/architecture/data-model.md`](doc/architecture/data-model.md).
-- Commands: `npm run dev`, `npm run build`, `npm run deploy` (GitHub Pages). ESLint: `npx eslint src`.
+- Commands: `npm run dev`, `npm run build`. ESLint: `npx eslint src`.
+- Deploy: pushing to `master` triggers `.github/workflows/deploy.yml`, which publishes to
+  GitHub Pages and to an SFTP server. Don't commit secrets; CI reads them from repository secrets.

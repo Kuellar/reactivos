@@ -87,7 +87,23 @@ Rules tests: `cd tests/rules && npm install && npm test` (needs Java).
 
 ## Deploy
 
-1. App: `npm run deploy` (runs `predeploy` = `npm run build`, then `gh-pages -d dist` pushes `dist/` to the `gh-pages` branch).
-2. Security rules are **not** deployed with the app. After editing `firestore.rules`,
-   publish them: Firebase console → Firestore → Rules (paste), or
-   `npx firebase-tools deploy --only firestore:rules --project <project-id>`.
+**Automatic (CI):** every push to `master` runs `.github/workflows/deploy.yml`
+(docs/tests-only changes are skipped; it can also be run by hand from the Actions tab):
+
+1. `build`: `npm ci` + `npm run build`. The Firebase config comes from repository secrets
+   `VITE_FIREBASE_*`, because `.env.local` is not in git. The job fails early if any are missing.
+2. `github-pages`: force-pushes `dist/` to the `gh-pages` branch, which GitHub Pages serves
+   (https://kuellar.github.io/reactivos). Only the latest deploy is kept on that branch.
+3. `sftp`: uploads `dist/` with `lftp mirror` to `SFTP_HOST:SFTP_REMOTE_DIR` using
+   `SFTP_USER`/`SFTP_PASSWORD`. Optional: `SFTP_PORT`, and `SFTP_KNOWN_HOSTS` to pin the
+   server key. Remote files that are no longer in `dist/` are not deleted.
+
+Jobs 2 and 3 run in parallel and independently: if one fails, the other still deploys.
+The build works under any sub-path and needs no server rewrite rules, because Vite uses
+`base: "./"` and the app uses `HashRouter`.
+
+**Manual fallback:** `npm run deploy` builds locally and pushes to `gh-pages` (Pages only).
+
+**Security rules are never deployed by CI.** After editing `firestore.rules`, publish them:
+Firebase console → Firestore → Rules (paste), or
+`npx firebase-tools deploy --only firestore:rules --project <project-id>`.

@@ -1,0 +1,148 @@
+# Build once, then deploy the same dist/ to:
+#   1. GitHub Pages (pushes to the `gh-pages` branch, same as `npm run deploy`)
+#   2. A server over SFTP (user + password)
+#
+# Required repository secrets (Settings → Secrets and variables → Actions):
+#   VITE_FIREBASE_API_KEY, VITE_FIREBASE_AUTH_DOMAIN, VITE_FIREBASE_PROJECT_ID,
+#   VITE_FIREBASE_STORAGE_BUCKET, VITE_FIREBASE_MESSAGING_SENDER_ID, VITE_FIREBASE_APP_ID
+#   SFTP_HOST        e.g. example.com  (sftp://example.com:2222 also accepted)
+#   SFTP_USER
+#   SFTP_PASSWORD
+#   SFTP_REMOTE_DIR  e.g. public_html/reactivos  (relative = from the user's home)
+# Optional:
+#   SFTP_PORT        default 22
+#   SFTP_KNOWN_HOSTS output of `ssh-keyscan -p <port> <host>` to pin the server key
+#
+# Firestore rules are NOT deployed here; publish firestore.rules separately.
+# See doc/architecture/README.md
+
+name: Deploy
+
+on:
+  push:
+    branches: [master]
+    paths-ignore:
+      - "doc/**"
+      - "**/*.md"
+      - "tests/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
+      VITE_FIREBASE_AUTH_DOMAIN: ${{ secrets.VITE_FIREBASE_AUTH_DOMAIN }}
+      VITE_FIREBASE_PROJECT_ID: ${{ secrets.VITE_FIREBASE_PROJECT_ID }}
+      VITE_FIREBASE_STORAGE_BUCKET: ${{ secrets.VITE_FIREBASE_STORAGE_BUCKET }}
+      VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.VITE_FIREBASE_MESSAGING_SENDER_ID }}
+      VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Check Firebase secrets
+        run: |
+          missing=0
+          for v in VITE_FIREBASE_API_KEY VITE_FIREBASE_AUTH_DOMAIN VITE_FIREBASE_PROJECT_ID VITE_FIREBASE_APP_ID; do
+            if [ -z "${!v}" ]; then echo "::error::Missing repository secret $v"; missing=1; fi
+          done
+          exit $missing
+
+      - run: npm ci
+      - run: npm run build
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: dist
+          path: dist
+          retention-days: 7
+
+  github-pages:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # push to the gh-pages branch
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: dist
+          path: dist
+
+      - name: Push dist/ to gh-pages branch
+        working-directory: dist
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          touch .nojekyll
+          git init -q -b gh-pages
+          git add -A
+          git -c user.name="github-actions[bot]" \
+              -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+              commit -q -m "Deploy ${GITHUB_SHA::7}"
+          git push -q --force "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" gh-pages
+
+  sftp:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: dist
+          path: dist
+
+      - name: Install lftp
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq lftp
+
+      - name: Upload dist/ over SFTP
+        env:
+          SFTP_HOST: ${{ secrets.SFTP_HOST }}
+          SFTP_PORT: ${{ secrets.SFTP_PORT }}
+          SFTP_USER: ${{ secrets.SFTP_USER }}
+          LFTP_PASSWORD: ${{ secrets.SFTP_PASSWORD }}
+          SFTP_REMOTE_DIR: ${{ secrets.SFTP_REMOTE_DIR }}
+          SFTP_KNOWN_HOSTS: ${{ secrets.SFTP_KNOWN_HOSTS }}
+        run: |
+          for v in SFTP_HOST SFTP_USER LFTP_PASSWORD SFTP_REMOTE_DIR; do
+            if [ -z "${!v}" ]; then echo "::error::Missing repository secret ${v/LFTP_PASSWORD/SFTP_PASSWORD}"; exit 1; fi
+          done
+
+          # Accept "host", "host:port", "sftp://host:port/anything".
+          host="${SFTP_HOST#*://}"; host="${host%%/*}"
+          if [[ "$host" == *:* ]]; then port="${host##*:}"; host="${host%:*}"; else port="${SFTP_PORT:-22}"; fi
+
+          # Server host key: pinned via secret if given, otherwise fetched now.
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          if [ -n "$SFTP_KNOWN_HOSTS" ]; then
+            printf '%s\n' "$SFTP_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          else
+            ssh-keyscan -T 15 -p "$port" "$host" > ~/.ssh/known_hosts 2>/dev/null
+            [ -s ~/.ssh/known_hosts ] || { echo "::error::Could not reach $host:$port"; exit 1; }
+            echo "::notice::Host key fetched at runtime. Set SFTP_KNOWN_HOSTS to pin it."
+          fi
+
+          # Password comes from $LFTP_PASSWORD (--env-password), never on the command line.
+          # Keep the lftp commands on ONE line: in a multi-line string lftp passes the
+          # quotes around the user literally to ssh, which rejects it.
+          # Add --delete to `mirror` to also remove remote files that are no longer in dist/
+          # (only if SFTP_REMOTE_DIR is a folder used exclusively by this app).
+          cmds=(
+            "set sftp:auto-confirm no"
+            "set net:timeout 20"
+            "set net:max-retries 2"
+            "set net:reconnect-interval-base 5"
+            "open --env-password -u \"$SFTP_USER\" -p $port sftp://$host"
+            "mirror --reverse --verbose --parallel=4 dist/ \"$SFTP_REMOTE_DIR\""
+          )
+          lftp -c "$(IFS=';'; echo "${cmds[*]}")"
