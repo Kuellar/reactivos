@@ -349,6 +349,7 @@ export default function Users() {
         okText="Crear"
         cancelText="Cancelar"
         confirmLoading={creating}
+        maskClosable={false}
         onCancel={() => {
           setCreateOpen(false);
           form.resetFields();

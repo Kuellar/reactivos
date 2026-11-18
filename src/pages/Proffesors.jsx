@@ -248,6 +248,7 @@ export default function Professors() {
           setEditing(null);
           form.resetFields();
         }}
+        maskClosable={false}
         okText={editing ? "Actualizar" : "Crear"}
         cancelText="Cancelar"
         confirmLoading={processing}
@@ -301,6 +302,7 @@ export default function Professors() {
         title="Confirmar eliminación"
         onOk={handleDeleteConfirm}
         onCancel={handleDeleteCancel}
+        maskClosable={false}
         okText="Eliminar"
         okType="danger"
         cancelText="Cancelar"

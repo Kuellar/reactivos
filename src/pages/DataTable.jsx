@@ -34,6 +34,7 @@ import {
 import dayjs from "dayjs";
 import { db } from "../firebase";
 import TableActions from "../components/TableActions";
+import ModalCloseButton from "../components/ModalCloseButton";
 import { useAuth } from "../context/AuthContext";
 import { useLocation, useNavigate } from "react-router-dom";
 
@@ -1368,6 +1369,7 @@ export default function DataTable() {
                     await handleDeleteAll();
                   }}
                   onCancel={() => setShowConfirmDeleteAll(false)}
+                  maskClosable={false}
                   okText="Borrar todo"
                   okType="danger"
                   cancelText="Cancelar"
@@ -1435,10 +1437,10 @@ export default function DataTable() {
             zIndex: 1000,
             padding: 20,
           }}
-          onClick={() => setShowPopup(false)}
         >
           <div
             style={{
+              position: "relative",
               background: "white",
               padding: 30,
               borderRadius: 12,
@@ -1448,9 +1450,9 @@ export default function DataTable() {
               overflowY: "auto",
               boxShadow: "0 8px 20px rgba(0,0,0,0.25)",
             }}
-            onClick={(e) => e.stopPropagation()}
           >
-            <h2 style={{ marginBottom: 10 }}>
+            <ModalCloseButton onClick={() => setShowPopup(false)} />
+            <h2 style={{ marginBottom: 10, paddingRight: 32 }}>
               {editReactive ? "Editar Reactivo" : "Nuevo Reactivo"}
             </h2>
             <p style={{ marginBottom: 20, color: "#555" }}>
@@ -1601,6 +1603,7 @@ export default function DataTable() {
           open={showBatchModal}
           title="Importar reactivos desde CSV (separado por ;)"
           onCancel={() => setShowBatchModal(false)}
+          maskClosable={false}
           onOk={handleImportBatch}
           okText={batchLoading ? "Importando..." : "Importar"}
           okButtonProps={{ loading: batchLoading }}
@@ -1684,6 +1687,7 @@ export default function DataTable() {
             setShowPopupDelete(false);
             setDeleteReactive(null);
           }}
+          maskClosable={false}
           okText="Eliminar"
           okType="danger"
           cancelText="Cancelar"

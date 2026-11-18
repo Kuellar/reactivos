@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import ButtonCard from "../components/ButtonCard";
+import ModalCloseButton from "../components/ModalCloseButton";
 import { useNavigate } from "react-router-dom";
 import {
   collection,
@@ -301,6 +302,7 @@ export default function Home() {
             setShowPopupDelete(false);
             setDeleteLocation(null);
           }}
+          maskClosable={false}
           okText="Eliminar"
           okType="danger"
           cancelText="Cancelar"
@@ -324,18 +326,25 @@ export default function Home() {
             justifyContent: "center",
             alignItems: "center",
           }}
-          onClick={() => setShowPopup(false)}
         >
           <div
             style={{
+              position: "relative",
               background: "white",
               padding: 20,
               borderRadius: 8,
               minWidth: 300,
             }}
-            onClick={(e) => e.stopPropagation()}
           >
-            <h3>{editLocation ? "Editar sala" : "Nueva sala"}</h3>
+            <ModalCloseButton
+              onClick={() => {
+                setShowPopup(false);
+                setEditLocation(null);
+              }}
+            />
+            <h3 style={{ paddingRight: 32 }}>
+              {editLocation ? "Editar sala" : "Nueva sala"}
+            </h3>
             <input
               type="text"
               placeholder="Nombre"
