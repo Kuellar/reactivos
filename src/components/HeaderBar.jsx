@@ -1,30 +1,42 @@
-import React, { useEffect, useState } from "react";
-import { Layout, Button, Drawer, Grid } from "antd";
-import { MenuOutlined } from "@ant-design/icons";
+import React, { useState } from "react";
+import { Layout, Button, Drawer, Grid, Dropdown, Tag } from "antd";
+import { MenuOutlined, DownOutlined, TeamOutlined, KeyOutlined, LogoutOutlined } from "@ant-design/icons";
 import { Link, useNavigate } from "react-router-dom";
-import { onUserChanged, logout } from "../lib/auth";
+import { logout } from "../lib/auth";
+import { useAuth } from "../context/AuthContext";
+import { roleLabel, roleColor } from "../lib/permissions";
 import logoNegative from "../assets/logos/UdeC_blanco_horizontal_1.svg";
 
 const { Header } = Layout;
 const { useBreakpoint } = Grid;
 
 export default function HeaderBar() {
-  const [user, setUser] = useState(null);
+  const { user: authUser, role, can } = useAuth();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const navigate = useNavigate();
   const screens = useBreakpoint();
 
-  useEffect(() => {
-    const unsub = onUserChanged((u) => {
-      if (u) setUser({ name: u.displayName || u.email, uid: u.uid });
-      else setUser(null);
-    });
-    return () => unsub();
-  }, []);
+  const user = authUser ? { name: authUser.displayName || authUser.email, uid: authUser.uid } : null;
+  const canManageUsers = can("users.manage");
 
   const handleLogout = async () => {
+    setDrawerOpen(false);
     await logout();
     navigate("/login");
+  };
+
+  const userMenu = {
+    items: [
+      ...(canManageUsers ? [{ key: "users", icon: <TeamOutlined />, label: "Usuarios" }] : []),
+      { key: "password", icon: <KeyOutlined />, label: "Cambiar contraseña" },
+      { type: "divider" },
+      { key: "logout", icon: <LogoutOutlined />, label: "Cerrar sesión", danger: true },
+    ],
+    onClick: ({ key }) => {
+      if (key === "users") navigate("/users");
+      else if (key === "password") navigate("/change-password");
+      else if (key === "logout") handleLogout();
+    },
   };
 
   const isMobile = !screens.md;
@@ -66,17 +78,20 @@ export default function HeaderBar() {
           {!isMobile ? (
             user ? (
               <div className="user-area">
-                <div className="user-name" title={user.name}>
-                  {user.name}
-                </div>
-                <Button
-                  onClick={handleLogout}
-                  type="text"
-                  size="small"
-                  className="login-btn"
-                >
-                  Cerrar sesión
-                </Button>
+                {canManageUsers && (
+                  <Button onClick={() => navigate("/users")} type="text" size="small" className="login-btn" icon={<TeamOutlined />}>
+                    Usuarios
+                  </Button>
+                )}
+                <Dropdown menu={userMenu} trigger={["click"]} placement="bottomRight">
+                  <Button type="text" size="small" className="login-btn">
+                    <span className="user-name" title={user.name}>
+                      {user.name}
+                    </span>
+                    {role && <Tag color={roleColor(role)} style={{ marginInlineEnd: 0 }}>{roleLabel(role)}</Tag>}
+                    <DownOutlined />
+                  </Button>
+                </Dropdown>
               </div>
             ) : (
               <Button
@@ -97,7 +112,7 @@ export default function HeaderBar() {
         placement="right"
         onClose={() => setDrawerOpen(false)}
         open={drawerOpen}
-        bodyStyle={{ padding: 16 }}
+        styles={{ body: { padding: 16 } }}
       >
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           <Link
@@ -114,10 +129,20 @@ export default function HeaderBar() {
           >
             Reactivos
           </Link>
+          {canManageUsers && (
+            <Link to="/users" onClick={() => setDrawerOpen(false)} className="drawer-link">
+              Usuarios
+            </Link>
+          )}
 
           {user ? (
             <>
-              <div className="drawer-user-name">{user.name}</div>
+              <div className="drawer-user-name">
+                {user.name} {role && <Tag color={roleColor(role)}>{roleLabel(role)}</Tag>}
+              </div>
+              <Link to="/change-password" onClick={() => setDrawerOpen(false)} className="drawer-link">
+                Cambiar contraseña
+              </Link>
               <Button block onClick={handleLogout} type="primary">
                 Cerrar sesión
               </Button>

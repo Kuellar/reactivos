@@ -9,9 +9,9 @@ import {
   doc,
   deleteDoc,
 } from "firebase/firestore";
-import { db, auth } from "../firebase";
+import { db } from "../firebase";
 import imgPlaceholder from "../assets/images/image-placeholder.png";
-import { onAuthStateChanged } from "firebase/auth";
+import { useAuth } from "../context/AuthContext";
 import { Modal, message, Skeleton, Space, Tooltip } from "antd";
 import { EditOutlined, DeleteOutlined } from "@ant-design/icons";
 
@@ -22,40 +22,26 @@ export default function Home() {
   const [newLocationName, setNewLocationName] = useState("");
   const [editLocation, setEditLocation] = useState(null);
   const [query, setQuery] = useState("");
-  const [user, setUser] = useState(null);
+  const { user, can } = useAuth();
+  const canEditLocations = can("locations.write");
   const [deleteLocation, setDeleteLocation] = useState(null);
   const [showPopupDelete, setShowPopupDelete] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    let unsubSnapshot = null;
-    const unsubAuth = onAuthStateChanged(auth, (u) => {
-      setUser(u);
-      if (unsubSnapshot) return;
-
-      try {
-        unsubSnapshot = onSnapshot(
-          collection(db, "locations"),
-          (snapshot) => {
-            const data = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
-            setLocations(data);
-            setLoading(false);
-          },
-          (err) => {
-            console.error("onSnapshot error locations:", err);
-            setLoading(false);
-          }
-        );
-      } catch (err) {
-        console.error("Error starting onSnapshot:", err);
+    const unsub = onSnapshot(
+      collection(db, "locations"),
+      (snapshot) => {
+        const data = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
+        setLocations(data);
+        setLoading(false);
+      },
+      (err) => {
+        console.error("onSnapshot error locations:", err);
         setLoading(false);
       }
-    });
-
-    return () => {
-      if (unsubSnapshot) unsubSnapshot();
-      unsubAuth();
-    };
+    );
+    return unsub;
   }, []);
 
   const handleSave = async () => {
@@ -158,6 +144,7 @@ export default function Home() {
             gap: 10,
           }}
         >
+          {canEditLocations && (
           <button
             style={{
               padding: "8px 16px",
@@ -175,6 +162,7 @@ export default function Home() {
           >
             Agregar sala
           </button>
+          )}
 
           <button
             style={{
@@ -257,7 +245,7 @@ export default function Home() {
                   img={loc.img || imgPlaceholder}
                   onClick={() => navigate(`/table?location=${loc.id}`)}
                 />
-                {user && (
+                {canEditLocations && (
                   <div
                     style={{
                       position: "absolute",

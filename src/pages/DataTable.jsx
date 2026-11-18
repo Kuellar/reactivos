@@ -32,7 +32,7 @@ import {
 import dayjs from "dayjs";
 import { db } from "../firebase";
 import TableActions from "../components/TableActions";
-import { getAuth } from "firebase/auth";
+import { useAuth } from "../context/AuthContext";
 import { useLocation, useNavigate } from "react-router-dom";
 
 const { Panel } = Collapse;
@@ -61,8 +61,11 @@ export default function DataTable() {
   const [locationFilter, setLocationFilter] = useState(null);
   const [form] = Form.useForm();
 
-  const auth = getAuth();
-  const user = auth.currentUser;
+  const { can } = useAuth();
+  const canWrite = can("reactives.write");
+  const canImport = can("reactives.import");
+  const canExport = can("reactives.export");
+  const canDeleteAll = can("reactives.deleteAll");
 
   const location = useLocation();
   const navigate = useNavigate();
@@ -1045,7 +1048,7 @@ export default function DataTable() {
       cols = [...baseColumns];
     }
 
-    if (user) {
+    if (canWrite) {
       cols.push({
         title: "Acciones",
         key: "acciones",
@@ -1075,7 +1078,7 @@ export default function DataTable() {
     }
 
     return cols;
-  }, [isSmall, isM, baseColumns, user, handleEdit, openDelete]);
+  }, [isSmall, isM, baseColumns, canWrite, handleEdit, openDelete]);
 
   const onRow = (record) => ({
     onClick: (event) => {
@@ -1146,7 +1149,7 @@ export default function DataTable() {
               )}
             </div>
 
-            {user && (
+            {canWrite && (
               <Space style={{ marginTop: 8 }}>
                 <Button
                   onClick={() => {
@@ -1250,13 +1253,15 @@ export default function DataTable() {
         }}
       >
         <h2>Reactivos</h2>
-        {user && (
+        {(canWrite || canImport) && (
           <div style={{ display: "flex", gap: 8 }}>
-            <Button type="primary" icon={<PlusOutlined />} onClick={handleAdd}>
-              Agregar Reactivo
-            </Button>
-            <Button onClick={handleOpenBatch}>Agregar tabla</Button>
-            {showDeleteAll && (
+            {canWrite && (
+              <Button type="primary" icon={<PlusOutlined />} onClick={handleAdd}>
+                Agregar Reactivo
+              </Button>
+            )}
+            {canImport && <Button onClick={handleOpenBatch}>Agregar tabla</Button>}
+            {showDeleteAll && canDeleteAll && (
               <>
                 <Button
                   type="dashed"
@@ -1553,7 +1558,7 @@ export default function DataTable() {
           </div>
         </Modal>
       )}
-      {user && (
+      {canExport && (
         <div style={{ display: "flex", gap: 8 }}>
           <Button
             type="primary"

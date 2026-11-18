@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import { HashRouter } from "react-router-dom";
 import { ConfigProvider } from "antd";
 import App from "./App";
+import { AuthProvider } from "./context/AuthContext";
 import { antdTheme } from "./theme";
 import "antd/dist/reset.css";
 import "./styles/index.css";
@@ -13,7 +14,9 @@ root.render(
   <React.StrictMode>
     <ConfigProvider theme={antdTheme}>
       <HashRouter>
-        <App />
+        <AuthProvider>
+          <App />
+        </AuthProvider>
       </HashRouter>
     </ConfigProvider>
   </React.StrictMode>

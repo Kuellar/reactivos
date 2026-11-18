@@ -20,9 +20,9 @@ import {
   doc,
   updateDoc,
 } from "firebase/firestore";
-import { db, auth } from "../firebase"; // asegúrate de exportar `auth` desde tu archivo firebase
+import { db } from "../firebase";
 import { DeleteOutlined, EditOutlined } from "@ant-design/icons";
-import { onAuthStateChanged } from "firebase/auth";
+import { useAuth } from "../context/AuthContext";
 
 const { Option } = Select;
 
@@ -33,7 +33,8 @@ export default function Professors() {
   const [processing, setProcessing] = useState(false);
   const [editing, setEditing] = useState(null);
   const [form] = Form.useForm();
-  const [user, setUser] = useState(null);
+  const { can } = useAuth();
+  const canEdit = can("professors.write");
   const [deleteTarget, setDeleteTarget] = useState(null);
 
   useEffect(() => {
@@ -69,21 +70,6 @@ export default function Professors() {
       }
     );
     return () => unsub();
-  }, []);
-
-  useEffect(() => {
-    // escucha cambios de auth para mostrar/ocultar columna editar
-    let unsubAuth = () => {};
-    if (auth) {
-      unsubAuth = onAuthStateChanged(auth, (u) => {
-        setUser(u);
-      });
-    }
-    return () => {
-      try {
-        unsubAuth();
-      } catch (e) {}
-    };
   }, []);
 
   const openNew = () => {
@@ -188,7 +174,7 @@ export default function Professors() {
     { title: "Posición", dataIndex: "position", key: "position" },
   ];
 
-  if (user) {
+  if (canEdit) {
     columns.push({
       title: "Acciones",
       key: "actions",
@@ -235,7 +221,7 @@ export default function Professors() {
         }}
       >
         <h2 style={{ margin: 0 }}>Docentes</h2>
-        {user && (
+        {canEdit && (
           <div>
             <Button type="primary" onClick={openNew}>
               Agregar Docente

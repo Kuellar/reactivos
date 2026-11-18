@@ -1,0 +1,92 @@
+rules_version = '2';
+
+// Server-side enforcement of roles. The UI mirror is src/lib/permissions.js —
+// keep both in sync. Full explanation: doc/architecture/auth-and-users.md
+//
+// Publish: Firebase console > Firestore > Rules (paste this file), or
+//          `npx firebase-tools deploy --only firestore:rules`
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() { return request.auth != null; }
+    function userPath(uid) { return /databases/$(database)/documents/users/$(uid); }
+    function bootstrapPath() { return /databases/$(database)/documents/meta/bootstrap; }
+    function myProfile() { return get(userPath(request.auth.uid)).data; }
+
+    function isActive() {
+      return signedIn()
+        && exists(userPath(request.auth.uid))
+        && myProfile().get('disabled', false) != true;
+    }
+    function hasRole(roles) { return isActive() && myProfile().role in roles; }
+    function isAdmin() { return hasRole(['admin']); }
+    function isEditor() { return hasRole(['admin', 'editor']); }
+    function validRole(r) { return r in ['admin', 'editor', 'viewer', 'pending']; }
+
+    // ---- Inventory data: public read, editors write ----------------------
+    match /locations/{id} {
+      allow read: if true;
+      allow create, update, delete: if isEditor();
+    }
+    match /professors/{id} {
+      allow read: if true;
+      allow create, update, delete: if isEditor();
+    }
+    match /reactives/{id} {
+      allow read: if true;
+      allow create, update, delete: if isEditor();
+    }
+
+    // ---- User profiles ----------------------------------------------------
+    match /users/{uid} {
+      function isSelf() { return signedIn() && request.auth.uid == uid; }
+      function changedKeys() { return request.resource.data.diff(resource.data).affectedKeys(); }
+      function profileKeysOnly() {
+        return request.resource.data.keys().hasOnly([
+          'email', 'displayName', 'role', 'disabled', 'mustChangePassword',
+          'createdAt', 'createdBy', 'updatedAt'
+        ]);
+      }
+
+      allow read: if isSelf() || isAdmin();
+
+      // Admin manages everyone, but cannot change their own role/disabled
+      // flag or delete themselves (prevents locking the last admin out).
+      allow create: if isAdmin() && validRole(request.resource.data.role) && profileKeysOnly();
+      allow update: if isAdmin() && validRole(request.resource.data.role) && profileKeysOnly()
+                    && (!isSelf() || !changedKeys().hasAny(['role', 'disabled']));
+      allow delete: if isAdmin() && !isSelf();
+
+      // Any signed-in account without a profile may create its own as 'pending'.
+      allow create: if isSelf()
+                    && profileKeysOnly()
+                    && request.resource.data.role == 'pending'
+                    && request.resource.data.disabled == false
+                    && request.resource.data.mustChangePassword == false
+                    && request.resource.data.email == request.auth.token.email;
+
+      // Self-service: clear mustChangePassword (after changing password), rename.
+      allow update: if isSelf()
+                    && changedKeys().hasOnly(['mustChangePassword', 'displayName', 'updatedAt'])
+                    && request.resource.data.mustChangePassword == false;
+
+      // One-time bootstrap of the first admin, written in the same batch as
+      // meta/bootstrap. Optional hardening: append
+      //   && request.auth.token.email == 'owner@example.com'
+      allow create, update: if isSelf()
+                    && profileKeysOnly()
+                    && request.resource.data.role == 'admin'
+                    && request.resource.data.disabled == false
+                    && !exists(bootstrapPath())
+                    && getAfter(bootstrapPath()).data.adminUid == request.auth.uid;
+    }
+
+    match /meta/bootstrap {
+      allow read: if signedIn();
+      allow create: if signedIn()
+                    && request.resource.data.adminUid == request.auth.uid
+                    && getAfter(userPath(request.auth.uid)).data.role == 'admin';
+      allow update, delete: if false;
+    }
+  }
+}
